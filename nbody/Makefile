@@ -62,14 +62,11 @@ all: $(EXEC)
 include $(COMMON)/Makefile.common
 LDFLAGS	  = $(COMMON_LIBS)
 
-nbody3.o: nbody3.cpp
-	$(CXX) $(CXXFLAGS) -c nbody3.cpp
-
 nbody3: nbody3.o $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o nbody3 nbody3.o $(COMMON_OBJS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o nbody3 $^ $(LDFLAGS)
 
 simd: simd.o $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o simd simd.o $(COMMON_OBJS) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o simd $^ $(LDFLAGS)
 
 clean: clean_common
 	/bin/rm -fv $(EXEC) *.o *.optrpt

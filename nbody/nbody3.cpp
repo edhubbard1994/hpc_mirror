@@ -10,7 +10,7 @@
 #include <limits>
 #include <cmath>
 
-#include <my_timer.h>
+#include <timer.h>
 #include <aligned_allocator.h>
 
 #ifndef __RESTRICT
@@ -671,13 +671,13 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
    }
 
    /* Run the step several times. */
-   myTimer_t t_start = getTimeStamp();
+   TimerType t_start = getTimeStamp();
    double t_accel = 0, t_update = 0, t_search = 0;
    int flnum = 0;
    for (int step = 0; step < num_steps; ++step)
    {
       /* 1. Compute the acceleration on each object. */
-      myTimer_t t0 = getTimeStamp();
+      TimerType t0 = getTimeStamp();
 
       if (Method == ACCEL_NAIVE)
          accel_naive( pos, vel, mass, acc, n );
@@ -696,18 +696,18 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
          accel_vcl_simd_rotate( pos, vel, mass, acc, n );
 #endif
 
-      myTimer_t t1 = getTimeStamp();
+      TimerType t1 = getTimeStamp();
 
       /* 2. Advance the position and velocities. */
       update( pos, vel, mass, acc, n, dt );
 
-      myTimer_t t2 = getTimeStamp();
+      TimerType t2 = getTimeStamp();
 
       /* 3. Find the faster moving object. */
       if (step % 10 == 0)
          search( pos, vel, mass, acc, n );
 
-      myTimer_t t3 = getTimeStamp();
+      TimerType t3 = getTimeStamp();
 
       t_accel += getElapsedTime(t0,t1);
       t_update += getElapsedTime(t1,t2);

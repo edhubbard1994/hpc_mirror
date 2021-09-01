@@ -17,3 +17,5 @@ Thumbs.db
 
 # Linux object files
 *.o
+*.d
+*.optrpt

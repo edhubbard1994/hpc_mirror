@@ -119,4 +119,4 @@ ludec_omp: ludec_omp.o $(COMMON_OBJS)
 omp: $(EXEC_OMP)
 
 clean: clean_common
-	/bin/rm -fv $(EXEC) *.o *.optrpt *.d
+	/bin/rm -fv $(EXEC) $(EXEC_OMP) *.o *.optrpt *.d

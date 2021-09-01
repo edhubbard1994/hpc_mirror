@@ -10,7 +10,7 @@
 #include <cmath>
 #include <algorithm>
 
-#include <my_timer.h>
+#include <timer.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -1278,15 +1278,15 @@ int main (int argc, char * argv[])
    int ierr = 0;
    while (true)
    {
-      myTimer_t t0 = getTimeStamp();
+      TimerType t0 = getTimeStamp();
 
       for (int iter = 0; iter < niters; iter++)
       {
-         myTimer_t tcopy_start = getTimeStamp();
+         TimerType tcopy_start = getTimeStamp();
 
          LU.copy( A );
 
-         myTimer_t tcopy_stop = getTimeStamp();
+         TimerType tcopy_stop = getTimeStamp();
          tCopy += getElapsedTime( tcopy_start, tcopy_stop );
 
          if (method == 0)
@@ -1310,7 +1310,7 @@ int main (int argc, char * argv[])
          sum += LU(0,0);
       }
 
-      myTimer_t t1 = getTimeStamp();
+      TimerType t1 = getTimeStamp();
 
       tCalc = getElapsedTime(t0,t1);
       if ((tCalc > 0.1 and firstPass == false) or miters == 0) break;
@@ -1406,7 +1406,7 @@ int main (int argc, char * argv[])
 
          while (true)
          {
-            myTimer_t t0 = getTimeStamp();
+            TimerType t0 = getTimeStamp();
 
             for (int it = 0; it < niters; ++it)
             {
@@ -1447,7 +1447,7 @@ int main (int argc, char * argv[])
                }
             }
 
-            myTimer_t t1 = getTimeStamp();
+            TimerType t1 = getTimeStamp();
             tSolve = getElapsedTime( t0, t1 );
 
             if (tSolve < 0.1)

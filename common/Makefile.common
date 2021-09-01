@@ -1,12 +1,9 @@
-COMMON_OBJS = timer_impl.o
+COMMON_OBJS = timer.o
 COMMON_LIBS = -lrt
-COMMON_DEPS = $(COMMON_OBJS:.o=.d)
-
--include $(COMMON_DEPS)
 
 timer.o:
-	$(CXX) $(CXXFLAGS) -c $(COMMON)/timer_impl.cpp -o timer_impl.o
-	$(CXX) -MM $(CXXFLAGS) $(COMMON)/timer_impl.cpp > timer_impl.d
+	$(CXX) $(CXXFLAGS) -c $(COMMON)/timer.cpp -o timer.o
+	$(CXX) -MM $(CXXFLAGS) $(COMMON)/timer.cpp > timer.d
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<
@@ -17,4 +14,4 @@ timer.o:
 	$(CC) -MM $(CFLAGS) $< > $*.d
 
 clean_common:
-	/bin/rm -fv $(COMMON_OBJS) $(COMMON_DEPS)
+	/bin/rm -fv $(COMMON_OBJS)

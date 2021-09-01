@@ -9,7 +9,7 @@
 #include <algorithm>
 
 #include <aligned_allocator.h>
-#include <my_timer.h>
+#include <timer.h>
 
 #include <matmul.h>
 
@@ -105,7 +105,7 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
    {
       int c_index = rand() % n;
 
-      myTimer_t t1 = getTimeStamp();
+      TimerType t1 = getTimeStamp();
 
       for (int iter = 0; iter < niters; iter++)
       {
@@ -120,7 +120,7 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
          dummy( c );
       }
 
-      myTimer_t t2 = getTimeStamp();
+      TimerType t2 = getTimeStamp();
 
       for (int iter = 0; iter < niters; iter++)
       {
@@ -136,7 +136,7 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
          dummy( c );
       }
 
-      myTimer_t t3 = getTimeStamp();
+      TimerType t3 = getTimeStamp();
 
       double t_total = getElapsedTime(t1,t3);
       double t_waste = getElapsedTime(t1,t2);
@@ -374,10 +374,10 @@ int main (int argc, char * argv[])
       for (int i = 0; i < nmax; ++i)
          a[i] = 0.0;
 
-      myTimer_t t0 = getTimeStamp();
+      TimerType t0 = getTimeStamp();
       for (int i = 0; i < nmax; ++i)
       {
-         myTimer_t t1 = getTimeStamp();
+         TimerType t1 = getTimeStamp();
          a[i] = getElapsedTime(t0,t1);
          t0 = t1;
       }

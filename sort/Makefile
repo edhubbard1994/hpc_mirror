@@ -59,12 +59,12 @@ all: $(EXEC)
 include $(COMMON)/Makefile.common
 LDFLAGS	  = $(COMMON_LIBS)
 
-OBJS = sort.o dummy.o $(COMMON_OBJS)
+OBJS = sort.o dummy.o
 DEPS = $(OBJS:.o=.d)
--include $(DEPS)
+-include $(OBJS:.o=.d)
 
-sort: $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+sort: $(OBJS) $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean: clean_common
 	/bin/rm -fv $(EXEC) *.o *.optrpt *.d

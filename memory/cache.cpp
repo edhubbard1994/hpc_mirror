@@ -6,7 +6,7 @@
 #include <string> // std::log, etc.
 
 #define HighResTimer
-#include <my_timer.h>
+#include <timer.h>
 
 #include <aligned_allocator.h>
 
@@ -65,12 +65,12 @@ void assoc_test (const int miters)
 }
 
 template <typename ValueType, int npad>
-void stride_test (const int miters, const int stride, const int L1SIZE = 32)
+void stride_test (const int miters, const int stride, const int L1Bytes = 32)
 {
    const double nticks_per_sec = getTicksPerSecond();
-   const int L1WORDS = L1SIZE / sizeof(ValueType); // # of words
+   const int L1Words = L1Bytes / sizeof(ValueType); // # of words
 
-   const int melems = L1WORDS * stride * 2;
+   const int melems = L1Words * stride * 2;
    ValueType *array = (ValueType *) aligned_alloc<ValueType>(melems+npad, 64 /*bytes*/);
 
    const ValueType alpha = 1.1;
@@ -86,25 +86,23 @@ void stride_test (const int miters, const int stride, const int L1SIZE = 32)
       ValueType sum(0);
 
       // Touch the matrix columns.
-      uint64_t ticks_start = getClockTicks();
-      //myTimer_t t0 = getTimeStamp();
+      auto ticks_start = getClockTicks();
       for (int iter = 0; iter < niters; ++iter)
       {
          #pragma omp simd aligned(array:64)
-         for (int i = 0; i < L1WORDS; ++i)
+         for (int i = 0; i < L1Words; ++i)
             array[i*stride+npad] = alpha * array[i*stride+npad] + beta;
 
-         sum += array[iter%L1WORDS+npad];
+         sum += array[iter%L1Words+npad];
       }
 
-      //myTimer_t t1 = getTimeStamp();
-      uint64_t ticks_stop = getClockTicks();
+      auto ticks_stop = getClockTicks();
       double ticks = ticks_stop-ticks_start;
       double tCalc = ticks/nticks_per_sec;
       if (tCalc > 0.01)
       {
-         //printf("stride = %d ticks = %g\n", stride, 1000.*tCalc/(1.*niters)/(1.*L1WORDS));
-         printf("%d, %g, %g, %d, %d\n", stride, ticks/(niters*L1WORDS), tCalc/(niters*L1WORDS), niters, melems*sizeof(double));
+         //printf("stride = %d ticks = %g\n", stride, 1000.*tCalc/(1.*niters)/(1.*L1Words));
+         printf("%d, %g, %g, %d, %d\n", stride, ticks/(niters*L1Words), tCalc/(niters*L1Words), niters, melems*sizeof(double));
          break;
       }
       else
@@ -168,10 +166,10 @@ int main (int argc, char * argv[])
       for (int i = 0; i < size; ++i)
          y[i] = 0.0;
 
-      myTimer_t t0 = getTimeStamp();
+      TimerType t0 = getTimeStamp();
       for (int i = 0; i < size; ++i)
       {
-         myTimer_t t1 = getTimeStamp();
+         TimerType t1 = getTimeStamp();
          y[i] = getElapsedTime(t0,t1);
          t0 = t1;
       }
@@ -196,7 +194,11 @@ int main (int argc, char * argv[])
    }
    else
    {
+#if defined(L1SIZE)
+      const int l1size = L1SIZE;
+#else
       const int l1size = 32*1024; // kb
+#endif
       printf("stride, ticks, time, #iters, l1size= %dk\n", l1size);
 
       for (int i = 1; i <= 129; ++i)

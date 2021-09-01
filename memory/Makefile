@@ -2,8 +2,6 @@ COMMON	= ../common
 
 CXX	?= icpc
 CXXFLAGS= -O3 -g -I. -std=c++11 -I$(COMMON)
-#CXXFLAGS += -debug inline-debug-info
-#CXXFLAGS += -no-vec
 LDFLAGS	= -lrt
 
 OMP = -fopenmp
@@ -85,6 +83,15 @@ EXEC_OMP = matmul_omp ludec_omp
 
 all: $(EXEC)
 
+include $(COMMON)/Makefile.common
+
+MATMUL_OBJS = matmul.o matmul_kernels.o matmul_blas.o
+
+OBJS = cache.o ludec.o $(MATMUL_OBJS)
+OMP_OBJS = $(OBJS:.o=_omp.o)
+
+-include *.d
+
 %.o : %.f90
 	$(F90) $(F90FLAGS) -c $<
 
@@ -94,25 +101,22 @@ all: $(EXEC)
 %_omp.o : %.cpp
 	$(CXX) $(OMP) $(CXXFLAGS) -c $< -o $@
 
-matmul: matmul.o matmul_kernels.o matmul_blas.o my_timer.o
+matmul: $(MATMUL_OBJS) $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o matmul $^ $(LDFLAGS)
 
-matmul_omp: matmul_omp.o matmul_kernels_omp.o matmul_blas.o my_timer.o
+matmul_omp: $(MATMUL_OBJS:.o=_omp.o) $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-cache: cache.cpp my_timer.o
-	$(CXX) $(CXXFLAGS) -o cache cache.cpp my_timer.o $(LDFLAGS)
+cache: cache.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache $^ $(LDFLAGS)
 
-ludec: ludec.cpp my_timer.o
-	$(CXX) $(CXXFLAGS) -o ludec ludec.cpp my_timer.o $(LDFLAGS)
+ludec: ludec.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o ludec $^ $(LDFLAGS)
 
-ludec_omp: ludec.cpp my_timer.o
-	$(CXX) $(CXXFLAGS) $(OMP) -o ludec_omp ludec.cpp my_timer.o $(LDFLAGS)
-
-my_timer.o: $(COMMON)/my_timer.h
-	$(CXX) $(CXXFLAGS) -c $(COMMON)/my_timer.cpp -o my_timer.o
+ludec_omp: ludec_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) $(OMP) -o ludec_omp $^ $(LDFLAGS)
 
 omp: $(EXEC_OMP)
 
-clean:
-	/bin/rm -fv $(EXEC) *.o *.optrpt
+clean: clean_common
+	/bin/rm -fv $(EXEC) *.o *.optrpt *.d

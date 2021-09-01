@@ -11,7 +11,7 @@
 #include <stdio.h>	// printf
 #include <stdlib.h>	// srand, rand, RAND_MAX
 
-#include <my_timer.h>
+#include <timer.h>
 #include <aligned_allocator.h>
 #include "partitioner.hpp"
 
@@ -657,7 +657,7 @@ void hybridSort (T *first, T *last, const BinaryComparisonOp &comp)
    size_t chunkSize = n / nChunks;
    //printf("nChunks = %d, n=%d, chunkSize=%d\n", nChunks, n, chunkSize);
 
-   myTimer_t t0 = getTimeStamp();
+   TimerType t0 = getTimeStamp();
 
    std::vector<size_t> idx(nChunks+1);
 
@@ -674,10 +674,10 @@ void hybridSort (T *first, T *last, const BinaryComparisonOp &comp)
       std::sort (ptr0, ptr1, comp);
    }
 
-   myTimer_t t1 = getTimeStamp();
+   TimerType t1 = getTimeStamp();
    //printf("sort time = %g\n", 1000*getElapsedTime(t0,t1));
 
-   myTimer_t t2 = getTimeStamp();
+   TimerType t2 = getTimeStamp();
 
    //std::vector<T> buf(n);
    T *buf = NULL;
@@ -711,7 +711,7 @@ void hybridSort (T *first, T *last, const BinaryComparisonOp &comp)
 
    Deallocate( buf );
 
-   myTimer_t t3 = getTimeStamp();
+   TimerType t3 = getTimeStamp();
    //printf("merge time = %g\n", 1000*getElapsedTime(t2,t3));
 }
 
@@ -789,7 +789,7 @@ struct IndexSortHelper
 
 enum algorithmTagType
 {
-   qsortTag,
+   stdSortTag,
    selectSortTag,
    mergeSortTag,
    quickSortTag,
@@ -802,7 +802,7 @@ std::string getAlgorithmName (int tag)
 {
    switch (tag)
    {
-      case qsortTag: return std::string("std::qsort");
+      case stdSortTag: return std::string("std::qsort");
       case selectSortTag: return std::string("selectSort");
       case mergeSortTag: return std::string("mergeSort");
       case quickSortTag: return std::string("quickSort");
@@ -815,7 +815,7 @@ std::string getAlgorithmName (int tag)
 }
 algorithmTagType getAlgorithmTag (int tag)
 {
-   if      (tag == int(qsortTag) ) return qsortTag;
+   if      (tag == int(stdSortTag) ) return stdSortTag;
    else if (tag == int(selectSortTag) ) return selectSortTag;
    else if (tag == int(mergeSortTag) ) return mergeSortTag;
    else if (tag == int(quickSortTag) ) return quickSortTag;
@@ -886,7 +886,7 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
       const int niters = (stage == 1) ? std::min(5,numTests) : numTests;
       //printf("stage=%d, niters=%d\n", stage, niters);
 
-      myTimer_t t_start = getTimeStamp();
+      TimerType t_start = getTimeStamp();
       for (int k = 0; k < niters; ++k)
       {
          // 1. Copy a[] to b[].
@@ -907,14 +907,13 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
 
             if (algorithmTag == selectSortTag)
                selectionSort (n, idx, index_comp);
+            else if (algorithmTag == stdSortTag)
+               std::sort(idx, idx+n, index_comp);
             else
-               if (algorithmTag != quickSortTag)
-               {
-                  fprintf(stderr,"Index sort is only support with selection- or quick-sort\n");
-                  return;
-               }
-               else
-                  std::sort(idx, idx+n, index_comp);
+            {
+               fprintf(stderr,"Index sort is only support with selection- or quick-sort\n");
+               return;
+            }
          }
          else
          {
@@ -992,7 +991,7 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
          tSort = 1e6;
       else
       {
-         myTimer_t t_copy_start = getTimeStamp();
+         TimerType t_copy_start = getTimeStamp();
          for (int k = 0; k < niters; ++k)
          {
             // 1. Copy a[] to b[].
@@ -1011,7 +1010,7 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
                idummy = std::min( idummy, idx[a_index] );
             }
          }
-         myTimer_t t_copy_stop = getTimeStamp();
+         TimerType t_copy_stop = getTimeStamp();
          double copy_time = getElapsedTime(t_copy_start, t_copy_stop );
 
          //printf("tSort: %e %e %e\n", tSort, copy_time, tSort - copy_time);
@@ -1086,7 +1085,7 @@ int main (int argc, char* argv[])
 
    float stepSize = 1.5;
 
-   algorithmTagType algorithmTag = qsortTag;
+   algorithmTagType algorithmTag = stdSortTag;
 
    for (int i = 1; i < argc; ++i)
    {

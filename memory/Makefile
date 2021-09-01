@@ -105,7 +105,7 @@ matmul: $(MATMUL_OBJS) $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o matmul $^ $(LDFLAGS)
 
 matmul_omp: $(MATMUL_OBJS:.o=_omp.o) $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(OMP) -o $@ $^ $(LDFLAGS)
 
 cache: cache.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o cache $^ $(LDFLAGS)

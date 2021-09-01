@@ -277,11 +277,12 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
 void show_usage( const char* prog )
 {
    printf("Usage for %s\n", prog);
-   printf("\t--minsize  | -min    <int value> : Minimum matrix size to start. (10)\n");
-   printf("\t--maxsize  | -max    <int value> : Maximum matrix size to start. (1000)\n");
-   printf("\t--stepsize | -step   <flt value> : Growth rate of matrix size.   (2)\n");
-   printf("\t--check    | -check              : Verify the solution against DGEMM. (off)\n");
-   printf("\t--method   | -method <int value> : Function choices are ... (0)\n");
+   printf("\t--minsize            <int value> : Minimum matrix size to start. (0)\n");
+   printf("\t--maxsize            <int value> : Maximum matrix size to start. (0)\n");
+   printf("\t--stepsize           <flt value> : Growth rate of matrix size.   (2)\n");
+   printf("\t--size     | -s      <int value> : Maximum matrix size to start. (1000)\n");
+   printf("\t--check    | -c                  : Verify the solution against DGEMM. (off)\n");
+   printf("\t--method   | -m      <int value> : Function choices are ... (0)\n");
    printf("\t\t0: blas (vendor)\n");
    printf("\t\t1: naive\n");
    printf("\t\t2: vectorized\n");
@@ -291,8 +292,9 @@ void show_usage( const char* prog )
 
 int main (int argc, char * argv[])
 {
-   int min_size = 10;
-   int max_size = 1000;
+   int min_size = 0;
+   int max_size = 0;
+   int mat_size = 1000;
    int niters = 2; // Number of samples for each test.
    int method = 0; // blas
    double stepSize = 2;
@@ -304,31 +306,37 @@ int main (int argc, char * argv[])
       for (int i = 1; i < argc; i++)
       {
          std::string arg = argv[i];
-         if (arg == "--minsize" || arg == "-min")
+         if (arg == "--minsize")
          {
             if ((i+1) >= argc) { fprintf(stderr,"Missing value for --minsize\n"); show_usage(argv[0]); return 1; }
             min_size = atoi( argv[i+1] );
             i++;
          }
-         else if (arg == "--maxsize" || arg == "-max")
+         else if (arg == "--maxsize")
          {
             if ((i+1) >= argc) { fprintf(stderr,"Missing value for --maxsize\n"); show_usage(argv[0]); return 1; }
             max_size = atoi( argv[i+1] );
             i++;
          }
-         else if (arg == "--method" || arg == "-method")
-         {
-            if ((i+1) >= argc) { fprintf(stderr,"Missing value for --method\n"); show_usage(argv[0]); return 1; }
-            method = atoi( argv[i+1] );
-            i++;
-         }
-         else if (arg == "--stepsize" || arg == "-step")
+         else if (arg == "--stepsize")
          {
             if ((i+1) >= argc) { fprintf(stderr,"Missing value for --stepsize\n"); show_usage(argv[0]); return 1; }
             stepSize = atof( argv[i+1] );
             i++;
          }
-         else if (arg == "--check" || arg == "-check")
+         else if (arg == "--size" || arg == "-s")
+         {
+            if ((i+1) >= argc) { fprintf(stderr,"Missing value for --maxsize\n"); show_usage(argv[0]); return 1; }
+            mat_size = atoi( argv[i+1] );
+            i++;
+         }
+         else if (arg == "--method" || arg == "-m")
+         {
+            if ((i+1) >= argc) { fprintf(stderr,"Missing value for --method\n"); show_usage(argv[0]); return 1; }
+            method = atoi( argv[i+1] );
+            i++;
+         }
+         else if (arg == "--check" || arg == "-c")
          {
             doCheck = true;
          }
@@ -367,7 +375,8 @@ int main (int argc, char * argv[])
    // Check the timer accuracy.
    double tDelta = 1e50;
    {
-      int nmax = std::min(10000,max_size);
+      //int nmax = std::min(10000,max_size);
+      int nmax = 10000;
 
       ValueType *a = new ValueType[nmax];
 
@@ -407,9 +416,11 @@ int main (int argc, char * argv[])
 #endif
    printf("\n");
 
-   int size = min_size;
-   for (; size <= max_size; size *= stepSize)
-      run_matmul (size, niters, tDelta, methods[method], doCheck );
+   if (max_size > min_size)
+      for (int size = min_size; size <= max_size; size *= stepSize)
+         run_matmul (size, niters, tDelta, methods[method], doCheck );
+   else
+      run_matmul (mat_size, niters, tDelta, methods[method], doCheck );
 
 #ifdef WITH_PAPI
    PAPI_shutdown();

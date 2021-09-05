@@ -1,9 +1,13 @@
-COMMON_OBJS = timer.o
+COMMON_OBJS = timer.o dummy.o
 COMMON_LIBS = -lrt
 
 timer.o:
 	$(CXX) $(CXXFLAGS) -c $(COMMON)/timer.cpp -o timer.o
 	$(CXX) -MM $(CXXFLAGS) $(COMMON)/timer.cpp > timer.d
+
+dummy.o:
+	$(CXX) $(CXXFLAGS) -c $(COMMON)/dummy.cpp -o dummy.o
+	$(CXX) -MM $(CXXFLAGS) $(COMMON)/dummy.cpp > dummy.d
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<

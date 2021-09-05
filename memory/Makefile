@@ -78,17 +78,14 @@ LDFLAGS += -L$(TACC_PAPI_DIR)/lib -lpapi
 endif
 endif
 
-EXEC = cache matmul ludec
-EXEC_OMP = matmul_omp ludec_omp
+EXEC = cache_stride matmul ludec
+EXEC_OMP = cache_stride_omp cache_assoc_omp matmul_omp ludec_omp
 
 all: $(EXEC)
 
 include $(COMMON)/Makefile.common
 
 MATMUL_OBJS = matmul.o matmul_kernels.o matmul_blas.o
-
-OBJS = cache.o ludec.o $(MATMUL_OBJS)
-OMP_OBJS = $(OBJS:.o=_omp.o)
 
 -include *.d
 
@@ -107,8 +104,14 @@ matmul: $(MATMUL_OBJS) $(COMMON_OBJS)
 matmul_omp: $(MATMUL_OBJS:.o=_omp.o) $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) $(OMP) -o $@ $^ $(LDFLAGS)
 
-cache: cache.o $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o cache $^ $(LDFLAGS)
+cache_stride: cache_stride.cpp $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_stride $^ $(LDFLAGS)
+
+cache_stride_omp: cache_stride.cpp $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_stride_omp $(OMP) $^ $(LDFLAGS)
+
+cache_assoc_omp: cache_assoc.cpp $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_assoc_omp $(OMP) $^ $(LDFLAGS)
 
 ludec: ludec.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o ludec $^ $(LDFLAGS)

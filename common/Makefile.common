@@ -10,12 +10,20 @@ dummy.o:
 	$(CXX) -MM $(CXXFLAGS) $(COMMON)/dummy.cpp > dummy.d
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $<
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 	$(CXX) -MM $(CXXFLAGS) $< > $*.d
 
+%_omp.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -c $< -o $@
+	$(CXX) -MM -MT $@ $(CXXFLAGS) $(OMPFLAGS) $< > $(@:.o=.d)
+
 %.o: %.c
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c $< -o $@
 	$(CC) -MM $(CFLAGS) $< > $*.d
+
+%_omp.o: %.c
+	$(CC) $(CFLAGS) $(OMPFLAGS) -c $< -o $@
+	$(CC) -MM -MT $@ $(CFLAGS) $(OMPFLAGS) $< > $(@:.o=.d)
 
 clean_common:
 	/bin/rm -fv $(COMMON_OBJS)

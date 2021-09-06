@@ -1,6 +1,6 @@
 COMMON	= ../common
 
-OMP      ?=
+OMPFLAGS ?= -fopenmp
 DBG      ?=
 CXX      ?= g++
 CXXFLAGS  = -O3 -I. -I$(COMMON) $(DBG)
@@ -19,12 +19,6 @@ endif
 
 ifeq ($(CXX),g++)
 CXXFLAGS += -mtune=native
-endif
-
-ifneq ($(OMP),)
-ifneq ($(OMP),0)
-CXXFLAGS += -fopenmp
-endif
 endif
 
 ifneq ($(restrict),)
@@ -59,12 +53,13 @@ all: $(EXEC)
 include $(COMMON)/Makefile.common
 LDFLAGS	  = $(COMMON_LIBS)
 
-OBJS = sort.o dummy.o
-DEPS = $(OBJS:.o=.d)
--include $(OBJS:.o=.d)
+-include *.d
 
-sort: $(OBJS) $(COMMON_OBJS)
+sort: sort.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+sort_omp: sort_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean: clean_common
 	/bin/rm -fv $(EXEC) *.o *.optrpt *.d

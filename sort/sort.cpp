@@ -14,6 +14,7 @@
 #include <timer.h>
 #include <aligned_allocator.h>
 #include "partitioner.hpp"
+#include "dummy.h"
 
 #ifdef ENABLE_PARALLEL_CXX
 #include <parallel/algorithm>
@@ -26,8 +27,6 @@
 #ifdef _OPENMP
 #  include <omp.h>
 #endif
-
-extern "C" void dummy_func( void *, void * );
 
 template <typename T, class BinaryCompOp>
 void selectionSort (const int n, T *arr, const BinaryCompOp &comp)
@@ -258,7 +257,7 @@ int* myPartitionSimd ( int *first, int *last, const int &pivot, const Comp&)
 #endif
 
 template <typename T, class BinaryComparisonOp>
-T * isSorted (T *first, T *last, const BinaryComparisonOp &comp)
+bool isSorted (T *first, T *last, const BinaryComparisonOp &comp, T *failure = NULL)
 {
    T *next = first+1;
    for (; next != last; ++first, ++next)
@@ -266,8 +265,8 @@ T * isSorted (T *first, T *last, const BinaryComparisonOp &comp)
          break;
          //return first;
 
-   //return last;
-   return next;
+   if (failure != NULL) failure = next;
+   return (next == last);
 }
 
 template <typename T>
@@ -865,26 +864,36 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
       }
    }
 
-   bool iterate = true;
-   if (numTests < 0)
-   {
-      iterate = false;
-      numTests = -numTests;
-   }
-
    int idummy = 1;
    ValueType dummy = 2;
 
    // Run the test several times.
    double tSort = 0;
-   for (int stage = 1; stage <= 2; stage++)
-   {
-      tSort = 0;
+   int niters = (numTests > 1) ? numTests : 1;
 
-      for(;;)
+   for(;;)
+   {
+      TimerType t_copy_start = getTimeStamp();
+      for (int k = 0; k < niters; ++k)
       {
-      const int niters = (stage == 1) ? std::min(5,numTests) : numTests;
-      //printf("stage=%d, niters=%d\n", stage, niters);
+         // 1. Copy a[] to b[].
+         std::copy(a, a + n, b);
+
+         int a_index = rand() % n;
+         int b_index = rand() % n;
+         dummy += a[a_index] + b[b_index];
+
+         dummy_function( n, (void*)a, (void*)b );
+
+         if (doIndexSort) {
+            for (int i = 0; i < n; ++i)
+               idx[i] = i;
+
+            idummy = std::min( idummy, idx[a_index] );
+         }
+      }
+      TimerType t_copy_stop = getTimeStamp();
+      double copy_time = getElapsedTime(t_copy_start, t_copy_stop );
 
       TimerType t_start = getTimeStamp();
       for (int k = 0; k < niters; ++k)
@@ -892,7 +901,7 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
          // 1. Copy a[] to b[].
          std::copy(a, a + n, b);
 
-         dummy_func( (void*)a, (void*)b );
+         dummy_function( n, (void*)a, (void*)b );
 
          int a_index = rand() % n;
          int b_index = rand() % n;
@@ -987,79 +996,48 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
       }
 
       tSort = getElapsedTime(t_start, getTimeStamp());
-      if (stage == 1)
-         tSort = 1e6;
-      else
-      {
-         TimerType t_copy_start = getTimeStamp();
-         for (int k = 0; k < niters; ++k)
-         {
-            // 1. Copy a[] to b[].
-            std::copy(a, a + n, b);
+      //printf("tSort: %e %e %e\n", tSort, copy_time, tSort - copy_time);
+      if (copy_time > 0) tSort -= copy_time;
 
-            int a_index = rand() % n;
-            int b_index = rand() % n;
-            dummy += a[a_index] + b[b_index];
-
-            dummy_func( (void*)a, (void*)b );
-
-            if (doIndexSort) {
-               for (int i = 0; i < n; ++i)
-                  idx[i] = i;
-
-               idummy = std::min( idummy, idx[a_index] );
-            }
-         }
-         TimerType t_copy_stop = getTimeStamp();
-         double copy_time = getElapsedTime(t_copy_start, t_copy_stop );
-
-         //printf("tSort: %e %e %e\n", tSort, copy_time, tSort - copy_time);
-         tSort -= copy_time;
-      }
-
-      if (tSort < 0.1 and iterate)
-         numTests *= 2;
-      else
+      if (tSort > 0.1 or numTests > 1)
          break;
-      }
+      else
+         niters *= 2;
    }
-   tSort /= numTests;
+   tSort /= niters;
 
    srand( (unsigned int) dummy );
    srand( (unsigned int) idummy );
 
-   //printf("Average time = %g (ms) for %d elements [%g kB] with %d tests\n", tSort*1000.0, n, n*(sizeof(double)/1024.0), num_tests);
-   ValueType *lastPtr = NULL;
    bool listIsSorted = false;
-   if (doIndexSort)
+   if (algorithmTag != partitionOnlyTag)
    {
-      //const index_comp cmpobj( b, idx );
-      lastPtr = isSorted(idx, idx+n, index_comp);
-      listIsSorted = lastPtr == (idx+n);
-   }
-   else
-   {
-      lastPtr = isSorted(b, b+n, comp());
-      listIsSorted = lastPtr == (b+n);
+      if (doIndexSort)
+         listIsSorted = isSorted(idx, idx+n, index_comp);
+      else
+         listIsSorted = isSorted(b, b+n, comp());
+
+      if (not(listIsSorted))
+         fprintf(stderr, "Error: output list is not sorted\n");
    }
 
-   //printf("%d, %g, %d, %d, %f\n", n, tSort*1000.0, numTests, listIsSorted, sizeof(ValueType)*size_t(n)/1024.);
-   printf("%d, %g, %d, %d, %g, %g\n", n, tSort*1000.0, numTests, listIsSorted, sizeof(ValueType)*size_t(n)/1024., (1e-6 * n) / (tSort));
-
-   if (not(iterate))
-   {
-      printf("isSorted = %d %d\n", listIsSorted, lastPtr - b);
-      ValueType *p = BinarySearch (b[n/2], b, b+n, comp());
-      std::cout << "Search: " << b[n/2] << ", " << p-b << ", " << *p << std::endl;
-   }
+   printf("%10d, %20.6f, %10d, %20.4f, %20.4f\n", n, tSort*1000.0, niters, sizeof(ValueType)*size_t(n)/1024., (1e-6 * n) / (tSort));
 
    // Print a[] and b[] (if not too large).
    if (1 && n < 50)
+   {
       for (int i = 0; i < n; ++i)
          if (doIndexSort)
             std::cout << i << "," << a[i] << "," << b[idx[i]] << "," << idx[i] << std::endl;
          else
             std::cout << i << "," << a[i] << "," << b[i] << std::endl;
+
+      if (listIsSorted)
+      {
+         ValueType *p = BinarySearch (b[n/2], b, b+n, comp());
+         std::cout << "Search: " << b[n/2] << ", " << p-b << ", " << *p << std::endl;
+      }
+   }
 
    Deallocate( a );
    Deallocate( b );
@@ -1077,7 +1055,7 @@ int main (int argc, char* argv[])
    int maxSize = 1000000;
 
    // Define the number of tests to run for statistics.
-   int num_tests = 10;
+   int num_tests = 0;
 
    int algorithm = 1;
 
@@ -1168,6 +1146,8 @@ int main (int argc, char* argv[])
    #endif
 
    fprintf(stderr,"minSize = %d, maxSize = %d, stepSize = %f, numTests = %d, indexSort = %d\n", minSize, maxSize, stepSize, num_tests, doIndexSort);
+
+   fprintf(stderr, "%10s, %20s, %10s, %20s, %20s\n", "Length", "Time (ms)", "Ntests", "Size (kb)", "TPut (/us)");
 
    for (int size = minSize; size <= maxSize; size *= stepSize)
       run_test(size, num_tests, algorithmTag, doIndexSort);

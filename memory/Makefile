@@ -13,6 +13,11 @@ CXXFLAGS += -DL3SIZE=`getconf LEVEL3_CACHE_SIZE`
 F90	?= ifort
 F90FLAGS = -O3 -g
 
+PAPI_DIR ?= /usr/
+ifneq ($(TACC_PAPI_DIR),)
+  PAPI_DIR = $(TACC_PAPI_DIR)
+endif
+
 ifneq ($(TACC_MKL_LIB),)
 #LDFLAGS	+= -lmkl_rt -L$(TACC_MKL_LIB)
 LDFLAGS	+= -mkl=sequential
@@ -73,8 +78,8 @@ endif
 
 ifneq ($(papi),)
 ifneq ($(papi),0)
-CXXFLAGS += -DWITH_PAPI -I$(TACC_PAPI_DIR)/include
-LDFLAGS += -L$(TACC_PAPI_DIR)/lib -lpapi
+CXXFLAGS += -DWITH_PAPI -I$(PAPI_DIR)/include
+LDFLAGS += -L$(PAPI_DIR)/lib -lpapi
 endif
 endif
 

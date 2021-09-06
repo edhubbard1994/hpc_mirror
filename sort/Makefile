@@ -45,7 +45,7 @@ CXXFLAGS += -DACC_FUNC=$(func)
 endif
 endif
 
-EXEC = sort
+EXEC = sort sort_omp
 
 all: $(EXEC)
 

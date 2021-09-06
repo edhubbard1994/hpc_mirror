@@ -11,7 +11,8 @@
 
 #ifdef WITH_PAPI
 # include "papi_helper.h"
-  std::vector<int> papi_events{ PAPI_L1_TCM, PAPI_L2_TCM, PAPI_L3_TCM };
+  //std::vector<int> papi_events{ PAPI_L1_TCM, PAPI_L2_TCM, PAPI_L3_TCM };
+  std::vector<int> papi_events{ PAPI_L1_DCM, PAPI_L2_DCM };
 #endif
 
 #include "omp_helper.h"
@@ -28,6 +29,11 @@ const int L1size = L1SIZE;
 const int L1size = 32*1024; // kb
 #endif
 
+#if defined(L1CACHELINE)
+const int L1cacheline = L1CACHELINE;
+#else
+const int L1cacheline = 64;
+#endif
 
 template <typename ValueType, int Offset>
 int stride_test (const int miters, const int stride, const int length, const ValueType alpha, const ValueType beta)
@@ -56,7 +62,7 @@ int stride_test (const int miters, const int stride, const int length, const Val
                for (int i = 0; i < length; ++i)
                   array[i*stride + Offset] = alpha * array[i*stride + Offset] + beta;
 
-               sum += array[iter % length];
+               //sum += array[iter % length];
                dummy_function( N, array );
             }
          };
@@ -72,15 +78,20 @@ int stride_test (const int miters, const int stride, const int length, const Val
 
       if (clock_time > 0.1)
       {
-         printf("%5d, %10.3f, %10.3f, %10d, %10d", stride, double(clock_ticks)/(niters*length), 1e9*clock_time/(niters*length), niters, N*sizeof(double) / 1024);
+         printf("%10d, %10.3f, %10.3f, %10d, %10d", stride, double(clock_ticks)/(niters*length), 1e9*clock_time/(niters*length), niters, N*sizeof(double) / 1024);
 
 #ifdef WITH_PAPI
          PAPI_CMD( PAPI_start_counters( papi_events.data(), papi_events.size() ) );
          kernel(); // run again
          std::vector<long long> papi_counters( papi_events.size(), 0 );
          PAPI_CMD( PAPI_stop_counters( papi_counters.data(), papi_events.size() ) );
-         for (int i = 0; i < papi_events.size(); ++i)
-            printf("%10d%s", papi_counters[i], (i == papi_events.size()-1) ? "" : ", ");
+         for (int i = 0; i < papi_events.size(); ++i) {
+            auto avg = double(papi_counters[i]) / niters; // avg per iteration.
+            auto n_cachelines = (length + L1cacheline - 1) / L1cacheline;
+            //auto val = avg / n_cachelines;
+            auto val = avg / length;
+            printf(", %15.5f", val);
+         }
 #endif
          printf("\n");
          break;
@@ -167,15 +178,6 @@ int main (int argc, char * argv[])
       fprintf(stderr,"PAPI: not enough hardware counters available %d %d!\n", PAPI_num_counters(), papi_events.size());
       return 1;
    }
-
-   std::vector<std::string> papi_event_names;
-   for (int i = 0; i < papi_events.size(); ++i)
-   {
-      char str[PAPI_MAX_STR_LEN];
-      PAPI_CMD( PAPI_event_code_to_name( papi_events[i], str ) );
-      papi_event_names.push_back( str );
-      printf("%s\n", str);
-   }
 #endif
 
    // Warm up the CPU
@@ -238,7 +240,16 @@ int main (int argc, char * argv[])
    fprintf(stderr, "L1 Data cache size %d\n", L1size);
    fprintf(stderr, "Length: %d\n", length);
 
-   fprintf(stderr, "stride, ticks, time, #iters, size\n");
+   fprintf(stderr, "%10s, %10s, %10s, %10s, %10s", "stride", "ticks/elem", "time", "loops", "size");
+#ifdef WITH_PAPI
+   for (int i = 0; i < papi_events.size(); ++i)
+   {
+      char str[PAPI_MAX_STR_LEN];
+      PAPI_CMD( PAPI_event_code_to_name( papi_events[i], str ) );
+      printf(", %15s", str);
+   }
+#endif
+   printf("\n");
 
    int success = 0;
 

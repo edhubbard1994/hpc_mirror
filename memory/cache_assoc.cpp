@@ -9,6 +9,11 @@
 #include "aligned_allocator.h"
 #include "dummy.h"
 
+#ifdef WITH_PAPI
+# include "papi_helper.h"
+  std::vector<int> papi_events{ PAPI_L1_DCM, PAPI_L2_DCM };
+#endif
+
 #include "omp_helper.h"
 
 #ifdef _OPENMP
@@ -49,16 +54,20 @@ int associativity_test (const int rows, const int cols, const ValueType beta, bo
 
    while (1)
    {
+      auto kernel = [&]() {
+            for (int k = 0; k < iters; ++k)
+            {
+               for (int i = 0; i < rows; ++i)
+                  for (int j = 1; j < cols; ++j)
+                     X(i,0) += beta * X(i,j);
+
+               dummy_function( len, x );
+            }
+         };
+
       auto ticks_start = getClockTicks();
 
-      for (int k = 0; k < iters; ++k)
-      {
-         for (int i = 0; i < rows; ++i)
-            for (int j = 1; j < cols; ++j)
-               X(i,0) += beta * X(i,j);
-
-         dummy_function( len, x );
-      }
+      kernel();
 
       auto ticks_stop = getClockTicks();
 
@@ -68,9 +77,22 @@ int associativity_test (const int rows, const int cols, const ValueType beta, bo
       double clock_time = double(clock_ticks) / nticks_per_sec;
 
       if (clock_time > 0.1) {
-         if (report)
-            printf("%10d, %10d, %10d, %10.3f\n", rows, cols, (rows * cols * sizeof(ValueType)) / 1024,
+         if (report) {
+            printf("%10d, %10d, %10d, %10.3f", rows, cols, (rows * cols * sizeof(ValueType)) / 1024,
                                double(clock_ticks)/(rows * cols * iters));
+#ifdef WITH_PAPI
+            PAPI_CMD( PAPI_start_counters( papi_events.data(), papi_events.size() ) );
+            kernel(); // run again
+            std::vector<long long> papi_counters( papi_events.size(), 0 );
+            PAPI_CMD( PAPI_stop_counters( papi_counters.data(), papi_events.size() ) );
+            for (int i = 0; i < papi_events.size(); ++i) {
+               auto avg = double(papi_counters[i]) / iters; // avg per iteration.
+               auto val = avg / (rows * cols);
+               printf(", %15.5f", val);
+            }
+#endif
+            printf("\n");
+         }
          break;
       }
       else {
@@ -144,6 +166,15 @@ int main (int argc, char * argv[])
       }
    }
 
+#ifdef WITH_PAPI
+   papi_start();
+
+   if (PAPI_num_counters() < papi_events.size()) {
+      fprintf(stderr,"PAPI: not enough hardware counters available %d %d!\n", PAPI_num_counters(), papi_events.size());
+      return 1;
+   }
+#endif
+
    // Warm up the CPU
    {
       const auto t_start = getTimeStamp();
@@ -206,7 +237,16 @@ int main (int argc, char * argv[])
    fprintf(stderr, "Padding: %d\n", (padding) ? 1 : 0);
    fprintf(stderr, "Rows length: %5.2f (kB)\n", (rows * ((use_double) ? sizeof(double) : sizeof(float))) / 1024.0);
 
-   fprintf(stderr, "Rows, Cols, Ticks\n");
+   fprintf(stderr, "%10s, %10s, %10s, %10s", "Rows", "Cols", "Size (kb)", "Ticks");
+#ifdef WITH_PAPI
+   for (int i = 0; i < papi_events.size(); ++i)
+   {
+      char str[PAPI_MAX_STR_LEN];
+      PAPI_CMD( PAPI_event_code_to_name( papi_events[i], str ) );
+      printf(", %15s", str);
+   }
+#endif
+   printf("\n");
 
    int success = 0;
 
@@ -230,6 +270,10 @@ int main (int argc, char * argv[])
          if (padding) success += associativity_test< float, 1>( rows, m, beta );
          else         success += associativity_test< float, 0>( rows, m, beta );
       }
+
+#ifdef WITH_PAPI
+   papi_stop();
+#endif
 
    return success;
 }

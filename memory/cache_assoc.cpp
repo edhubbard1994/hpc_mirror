@@ -11,7 +11,8 @@
 
 #ifdef WITH_PAPI
 # include "papi_helper.h"
-  std::vector<int> papi_events{ PAPI_L1_DCM, PAPI_L2_DCM };
+  //std::vector<int> papi_events{ PAPI_L1_DCM, PAPI_L2_DCM };
+  std::vector<int> papi_events{ PAPI_TOT_CYC, PAPI_L1_DCM, PAPI_L2_DCM };
 #endif
 
 #include "omp_helper.h"
@@ -50,7 +51,7 @@ int associativity_test (const int rows, const int cols, const ValueType beta, bo
       for (int j = 0; j < cols; ++j)
          X(i,j) = ValueType(i + j);
 
-   int iters = 1;
+   int iters = 128;
 
    while (1)
    {
@@ -88,6 +89,7 @@ int associativity_test (const int rows, const int cols, const ValueType beta, bo
             for (int i = 0; i < papi_events.size(); ++i) {
                auto avg = double(papi_counters[i]) / iters; // avg per iteration.
                auto val = avg / (rows * cols);
+               //auto val = (rows * cols) / avg;
                printf(", %15.5f", val);
             }
 #endif

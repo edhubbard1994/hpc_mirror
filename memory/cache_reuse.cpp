@@ -11,8 +11,6 @@
 
 #ifdef WITH_PAPI
 # include "papi_helper.h"
-  //std::vector<int> papi_events{ PAPI_L1_TCM, PAPI_L2_TCM, PAPI_L3_TCM };
-  //std::vector<int> papi_events{ PAPI_L1_DCM, PAPI_L2_DCM };
   std::vector<int> papi_events{ PAPI_TOT_CYC, PAPI_L1_DCM, PAPI_L2_DCM };
 #endif
 
@@ -36,22 +34,24 @@ const int L1cacheline = L1CACHELINE;
 const int L1cacheline = 64;
 #endif
 
-template <typename ValueType, int Offset>
-int stride_test (const int miters, const int stride, const int length, const ValueType alpha, const ValueType beta)
+template <typename ValueType, int Pad>
+int cache_test (const int miters, const int length, const ValueType alpha, const ValueType beta)
 {
    const auto nticks_per_sec = getTicksPerSecond();
 
-   const int N = length * stride + Offset;
-   const int N0 = std::max(N, int(L1size / sizeof(ValueType)) + 1 );
-   ValueType *array = (ValueType *) aligned_alloc<ValueType>(N0, 64 /* alignment bytes*/);
+   constexpr int Padding = (Pad == 0) ? 0 : ( L1cacheline / sizeof(ValueType) ); // an extra cacheline.
+
+   const int N = length + Padding;
+   ValueType *x = (ValueType *) aligned_alloc<ValueType>(N, 64 /* alignment bytes*/);
+   ValueType *y = (ValueType *) aligned_alloc<ValueType>(N, 64 /* alignment bytes*/);
 
    // Flush the array and clear the cache.
-   for (int i = 0; i < N0; ++i)
-      array[i] = ValueType(i);
+   for (int i = 0; i < N; ++i)
+      x[i] = y[i] = ValueType(i);
 
    ValueType sum(0);
 
-   int niters = miters;
+   int niters = (miters == 0) ? 1 : miters;
 
    while (1)
    {
@@ -59,12 +59,18 @@ int stride_test (const int miters, const int stride, const int length, const Val
             // Touch the vector elements.
             for (int iter = 0; iter < niters; ++iter)
             {
-               #pragma omp simd aligned(array: 64)
+               #pragma omp simd aligned(x: 64)
                for (int i = 0; i < length; ++i)
-                  array[i*stride + Offset] = alpha * array[i*stride + Offset] + beta;
+                  x[i] = alpha * x[i] + beta;
 
-               //sum += array[iter % length];
-               dummy_function( N, array );
+               //sum += x[iter % length];
+               dummy_function( length, x, y );
+
+               #pragma omp simd aligned(y: 64)
+               for (int i = 0; i < length; ++i)
+                  y[i] = alpha * y[i] + beta * x[i];
+
+               dummy_function( length, x, y );
             }
          };
 
@@ -77,9 +83,9 @@ int stride_test (const int miters, const int stride, const int length, const Val
       auto clock_ticks = ticks_stop - ticks_start;
       double clock_time = double(clock_ticks) / nticks_per_sec; // ns
 
-      if (clock_time > 0.1)
+      if (clock_time > 0.1 or miters > 0)
       {
-         printf("%10d, %10.3f, %10.3f, %10d, %10d", stride, double(clock_ticks)/(niters*length), 1e9*clock_time/(niters*length), niters, N*sizeof(double) / 1024);
+         printf("%10d, %10.3f, %10.3f, %10d, %10d", length, double(clock_ticks)/(length*niters), 1e9*clock_time/(niters*length), niters, N*sizeof(double) / 1024);
 
 #ifdef WITH_PAPI
          PAPI_CMD( PAPI_start_counters( papi_events.data(), papi_events.size() ) );
@@ -88,9 +94,6 @@ int stride_test (const int miters, const int stride, const int length, const Val
          PAPI_CMD( PAPI_stop_counters( papi_counters.data(), papi_events.size() ) );
          for (int i = 0; i < papi_events.size(); ++i) {
             auto avg = double(papi_counters[i]) / niters; // avg per iteration.
-            auto n_cachelines = (length + L1cacheline - 1) / L1cacheline;
-            //auto val = avg / n_cachelines;
-            //auto val = avg / length;
             auto val = length / avg;
             printf(", %15.5f", val);
          }
@@ -102,7 +105,8 @@ int stride_test (const int miters, const int stride, const int length, const Val
          niters *= 2;
    }
 
-   free(array);
+   free(x);
+   free(y);
 
    return (sum > 0) ? 0 : 1;
 }
@@ -110,19 +114,19 @@ int stride_test (const int miters, const int stride, const int length, const Val
 void show_usage( FILE *f )
 {
    fprintf(f, "Usage:\n");
-   fprintf(f, "\t--iters  | -i <int value> : Number of iterations. (1000)\n");
+   fprintf(f, "\t--niters | -i <int value> : Number of iterations. (1000)\n");
    fprintf(f, "\t--offset | -o             : Force non-aligned allocation.\n");
-   fprintf(f, "\t--length | -n <int value> : Array length. (50\% of L1 data cache)\n");
+   fprintf(f, "\t--min                     : Minimum array length. (128)\n");
+   fprintf(f, "\t--max                     : Maximum array length. (16 * L1)\n");
 }
 
 int main (int argc, char * argv[])
 {
-   int niters = 1000; // Number of samples for each test.
-   int offset = 0;
-   int max_stride = 33;
+   int niters = 0; // Number of samples for each test.
+   int padding = 0;
    bool use_double = true;
-
-   int length = (L1size / sizeof(double)) / 2;
+   int min_length = 128;
+   int max_length = 16 * (L1size / sizeof(double));
 
    double alpha = 1.1;
    double beta = 2.2;
@@ -133,28 +137,28 @@ int main (int argc, char * argv[])
       for (int i = 1; i < argc;)
       {
          std::string key = argv[i++];
-         if (key == "--iters" || key == "-i")
+         if (key == "--niters" || key == "-i")
          {
             if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
             niters = atoi( argv[i++] );
          }
-         else if (key == "--offset" || key == "-o")
+         else if (key == "--padding" || key == "-p")
          {
-            offset = 1;
+            padding = 1;
          }
          else if (key == "--float" || key == "--single" || key == "-s")
          {
             use_double = false;
          }
-         else if (key == "--length" || key == "-n")
+         else if (key == "--min" || key == "-m")
          {
             if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
-            length = atoi( argv[i++] );
+            min_length = atoi( argv[i++] );
          }
          else if (key == "--max" || key == "-m")
          {
             if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
-            max_stride = atoi( argv[i++] );
+            max_length = atoi( argv[i++] );
          }
          else if (key == "--alpha" || key == "-a")
          {
@@ -186,7 +190,7 @@ int main (int argc, char * argv[])
    {
       const auto t_start = getTimeStamp();
 
-      int n = length;
+      int n = max_length;
 
       while (1)
       {
@@ -240,9 +244,8 @@ int main (int argc, char * argv[])
    }
 
    fprintf(stderr, "L1 Data cache size %d\n", L1size);
-   fprintf(stderr, "Length: %d\n", length);
 
-   fprintf(stderr, "%10s, %10s, %10s, %10s, %10s", "stride", "ticks/elem", "time", "loops", "size");
+   fprintf(stderr, "%10s, %10s, %10s, %10s, %10s", "length", "ticks/elem", "time", "loops", "size");
 #ifdef WITH_PAPI
    for (int i = 0; i < papi_events.size(); ++i)
    {
@@ -255,14 +258,14 @@ int main (int argc, char * argv[])
 
    int success = 0;
 
-   for (int stride = 1; stride <= max_stride; ++stride)
+   for (int length = min_length; length <= max_length; length *= 2)
       if (use_double) {
-         if (offset) success += stride_test<double, 1>( niters, stride, length, alpha, beta );
-         else        success += stride_test<double, 0>( niters, stride, length, alpha, beta );
+         if (padding) success += cache_test<double, 1>( niters, length, alpha, beta );
+         else         success += cache_test<double, 0>( niters, length, alpha, beta );
       }
       else {
-         if (offset) success += stride_test< float, 1>( niters, stride, length, alpha, beta );
-         else        success += stride_test< float, 0>( niters, stride, length, alpha, beta );
+         if (padding) success += cache_test< float, 1>( niters, length, alpha, beta );
+         else         success += cache_test< float, 0>( niters, length, alpha, beta );
       }
 
 #ifdef WITH_PAPI

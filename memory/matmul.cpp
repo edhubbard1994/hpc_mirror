@@ -72,7 +72,7 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
    matmul_blas(n, n, n, alpha, a, n, b, n, beta, cref, n);
 
    // Run a few iterations to warm up the system.
-   for (int iter = 0; iter < std::min(2,niters); iter++)
+   for (int iter = 0; iter < std::min(1,niters); iter++)
    {
       std::fill ( c, c + n*n, cval );
       matmul(n, n, n, alpha, a, n, b, n, beta, c, n);
@@ -149,7 +149,7 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
 
 #ifdef WITH_PAPI
 
-   //std::vector<int> papi_events{ PAPI_L1_TCM, PAPI_L2_TCM, PAPI_L3_TCM, PAPI_DP_OPS, PAPI_LST_INS };
+   std::vector<int> papi_events{ PAPI_TOT_CYC, PAPI_L1_TCM, PAPI_L2_TCM, PAPI_L3_TCM, PAPI_DP_OPS };
 
    //std::vector< std::string > papi_native_event_names{ "MEM_UOPS_RETIRED.ALL_STORES",
    //                                                    "MEM_UOPS_RETIRED.ALL_LOADS",
@@ -158,12 +158,13 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
    //                                                    "MEM_LOAD_UOPS_RETIRED.L2_HIT",
    //                                                    "MEM_LOAD_UOPS_RETIRED.L1_HIT" };
 
-   std::vector<int> papi_events;
+   //std::vector<int> papi_events;
    std::vector< std::string > papi_event_names;
 
    char *papi_env = getenv("PAPI_EVENTS");
    if (papi_env)
    {
+      papi_events.clear();
       printf("papi_env %s\n", papi_env);
       char *str = papi_env;
       size_t len = strlen(papi_env);
@@ -184,19 +185,21 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
    for (int i = 0; i < papi_event_names.size(); ++i)
    {
       int this_event = 0 | PAPI_NATIVE_MASK;
-      int retval = PAPI_event_name_to_code( papi_event_names[i].c_str(), &this_event );
+      int retval = PAPI_event_name_to_code( const_cast<char*>(papi_event_names[i].c_str()), &this_event );
       if (retval != PAPI_OK) {
          fprintf(stderr,"PAPI: Error calling PAPI_event_code_to_name %d\n", retval);
          return 1;
       }
-      printf("PAPI event %s %x\n", papi_event_names[i].c_str(), this_event);
+      //printf("PAPI event %s %x\n", papi_event_names[i].c_str(), this_event);
       papi_events.push_back( this_event );
    }
 
    const int num_papi_events = papi_events.size();
    std::vector<long long> papi_event_counters( num_papi_events );
-   const int num_hw_counters = 1; //PAPI_num_counters();
-   printf("events= %d, hw= %d %d\n", num_papi_events, num_hw_counters, PAPI_num_counters());
+   //const int num_hw_counters = 1; //PAPI_num_counters();
+   const int num_hw_counters = 2; //PAPI_num_counters();
+//   const int num_hw_counters = PAPI_num_counters();
+   //printf("events= %d, hw= %d %d\n", num_papi_events, num_hw_counters, PAPI_num_counters());
 
    {
       for (int i = 0; i < n; ++i)
@@ -240,13 +243,14 @@ int run_matmul (int n, int niters, const double tDelta, matmul_ptr matmul, const
             fprintf(stderr,"PAPI: Error calling PAPI_event_code_to_name %d\n", retval);
             return 1;
          }
-         printf("PAPI event %d %d %s %.2f\n", i, papi_events[i], papi_event_str, 1e-3*papi_event_counters[i]);
+         //printf("PAPI event %d %d %s %.2f\n", i, papi_events[i], papi_event_str, 1e-3*papi_event_counters[i]);
       }
    }
 #endif
 
    double Gflops = 1e-9 * ((((2.0*n)*n)*n) + ((3.0*n)*n)) / tCalc;
-   printf("%5d, %10.4f, %10.4f, %.2f%%, %10d, %e", n, tCalc*1000, Gflops, 100*tDelta/(niters*tCalc), niters, sqrt(err2 / ref2));
+   //printf("%5d, %10.4f, %10.4f, %.2f%%, %10d, %e", n, tCalc*1000, Gflops, 100*tDelta/(niters*tCalc), niters, sqrt(err2 / ref2));
+   printf("%10d, %10.2f, %10.4f, %10.4f, %10d, %10.4e", n, double(3*n*n)*sizeof(ValueType) / 1024., tCalc*1000, Gflops, niters, sqrt(err2 / ref2));
 #ifdef WITH_PAPI
    for (int i = 0; i < num_papi_events; ++i)
       printf(", %10.2f", papi_event_counters[i]*1e-3);
@@ -410,9 +414,9 @@ int main (int argc, char * argv[])
    }
 #endif
 
-   printf("size, time (ms), GFLOP/s, Confident(%), # runs, error");
+   printf("%10s, %10s, %10s, %10s, %10s, %10s", "N", "Size (kb)", "time (ms)", "GFLOP/s", "Runs", "Error");
 #ifdef WITH_PAPI
-   printf(", PAPI GFLOPs, L1, L2, L3 cache misses");
+   printf(", PAPI TOT_CYC, L1, L2, L3 misses, DP_OPS");
 #endif
    printf("\n");
 

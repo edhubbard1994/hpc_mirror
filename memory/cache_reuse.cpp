@@ -94,7 +94,8 @@ int cache_test (const int miters, const int length, const ValueType alpha, const
          PAPI_CMD( PAPI_stop_counters( papi_counters.data(), papi_events.size() ) );
          for (int i = 0; i < papi_events.size(); ++i) {
             auto avg = double(papi_counters[i]) / niters; // avg per iteration.
-            auto val = length / avg;
+            //auto val = length / avg;
+            auto val = avg / length;
             printf(", %15.5f", val);
          }
 #endif

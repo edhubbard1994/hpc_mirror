@@ -90,8 +90,8 @@ int stride_test (const int miters, const int stride, const int length, const Val
             auto avg = double(papi_counters[i]) / niters; // avg per iteration.
             auto n_cachelines = (length + L1cacheline - 1) / L1cacheline;
             //auto val = avg / n_cachelines;
-            //auto val = avg / length;
-            auto val = length / avg;
+            auto val = avg / length;
+            //auto val = length / avg;
             printf(", %15.5f", val);
          }
 #endif

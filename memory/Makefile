@@ -88,7 +88,7 @@ endif
 endif
 
 EXEC = matmul ludec
-EXEC_OMP = cache_stride_omp cache_assoc_omp cache_reuse_omp matmul_omp ludec_omp
+EXEC_OMP = cache_stride_omp cache_assoc_omp cache_reuse_omp matmul_omp ludec_omp cache_struct_omp
 
 all: $(EXEC)
 
@@ -124,6 +124,9 @@ cache_assoc_omp: cache_assoc.cpp $(COMMON_OBJS)
 
 cache_reuse_omp: cache_reuse.cpp $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o cache_reuse_omp $(OMP) $^ $(LDFLAGS)
+
+cache_struct_omp: cache_struct.cpp $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_struct_omp $(OMP) $^ $(LDFLAGS)
 
 ludec: ludec.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o ludec $^ $(LDFLAGS)

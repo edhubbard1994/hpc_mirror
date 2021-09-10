@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cctype>
+#include <cmath>
 #include <algorithm> // std::min
 #include <string>
 #include <vector>
@@ -236,8 +237,8 @@ int main (int argc, char * argv[])
       }
 
       for (int i = 0; i < size-1; ++i)
-         if (std::abs(y[i+1] - y[i]) > 0.0)
-            tDelta = std::min(tDelta, std::abs(y[i+1]-y[i]));
+         if (std::fabs(y[i+1] - y[i]) > 0.0)
+            tDelta = std::fmin(tDelta, std::fabs(y[i+1]-y[i]));
 
       fprintf(stderr, "Smallest detectable time = %e (ms)\n", tDelta*1000.0);
 

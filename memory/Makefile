@@ -1,6 +1,6 @@
 COMMON	= ../common
 
-CXX	?= icpc
+CXX	?= g++
 CXXFLAGS= -O3 -g -I. -std=c++11 -I$(COMMON)
 LDFLAGS	= -lrt
 
@@ -10,8 +10,8 @@ CXXFLAGS += -DL1SIZE=`getconf LEVEL1_DCACHE_SIZE`
 CXXFLAGS += -DL2SIZE=`getconf LEVEL2_CACHE_SIZE`
 CXXFLAGS += -DL3SIZE=`getconf LEVEL3_CACHE_SIZE`
 
-F90	?= ifort
-F90FLAGS = -O3 -g
+FTN	?= gfortran
+FTNFLAGS = -O3 -g
 
 PAPI_DIR ?= /usr/
 ifneq ($(TACC_PAPI_DIR),)
@@ -19,8 +19,8 @@ ifneq ($(TACC_PAPI_DIR),)
 endif
 
 ifneq ($(TACC_MKL_LIB),)
-#LDFLAGS	+= -lmkl_rt -L$(TACC_MKL_LIB)
-LDFLAGS	+= -mkl=sequential
+LDFLAGS	+= -lmkl_rt -L$(TACC_MKL_LIB)
+#LDFLAGS	+= -mkl=sequential
 else
  ifneq ($(MKLROOT),)
   #LDFLAGS += -lmkl_core -lmkl_mc -lmkl_rt -L $(MKLROOT)/lib/intel64
@@ -36,9 +36,13 @@ ifeq ($(CXX),icpc)
 CXXFLAGS += -xCORE-AVX512 -qopt-zmm-usage=high #-no-vec
 CXXFLAGS += -qopt-report=5
 CXXFLAGS += -qopenmp-simd
-F90FLAGS += -xCORE-AVX512 -qopt-zmm-usage=high -no-vec
-F90FLAGS += -qopt-report=5
-F90FLAGS += -qopenmp-simd
+LDFLAGS += -lifcore
+endif
+
+ifeq ($(FTN),ifort)
+FTNFLAGS += -xCORE-AVX512 -qopt-zmm-usage=high -no-vec
+FTNFLAGS += -qopt-report=5
+FTNFLAGS += -qopenmp-simd
 LDFLAGS += -lifcore
 endif
 
@@ -83,7 +87,7 @@ LDFLAGS += -L$(PAPI_DIR)/lib -lpapi
 endif
 endif
 
-EXEC = cache_stride matmul ludec
+EXEC = matmul ludec
 EXEC_OMP = cache_stride_omp cache_assoc_omp cache_reuse_omp matmul_omp ludec_omp
 
 all: $(EXEC)
@@ -95,10 +99,10 @@ MATMUL_OBJS = matmul.o matmul_kernels.o matmul_blas.o
 -include *.d
 
 %.o : %.f90
-	$(F90) $(F90FLAGS) -c $<
+	$(FTN) $(FTNFLAGS) -c $<
 
 %_omp.o : %.f90
-	$(F90) $(OMP) $(F90FLAGS) -c $< -o $@
+	$(FTN) $(OMP) $(FTNFLAGS) -c $< -o $@
 
 %_omp.o : %.cpp
 	$(CXX) $(OMP) $(CXXFLAGS) -c $< -o $@

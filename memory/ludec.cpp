@@ -1,7 +1,8 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cctype>
+#include <cstring>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <typeinfo>
@@ -61,7 +62,7 @@ int ludec_naive( Matrix& A, Vector& P )
       double maxval = fabs( A(k,k) );
       for (int i = k+1; i < m; ++i)
       {
-         const double val = std::abs( A(i,k) );
+         const double val = std::fabs( A(i,k) );
          if (val > maxval)
          {
             ipiv = i;

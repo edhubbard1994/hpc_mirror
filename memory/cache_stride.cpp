@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cctype>
+#include <cmath>
 #include <algorithm> // std::min
 #include <string>
 #include <vector>
@@ -112,7 +113,7 @@ void show_usage( FILE *f )
    fprintf(f, "Usage:\n");
    fprintf(f, "\t--iters  | -i <int value> : Number of iterations. (1000)\n");
    fprintf(f, "\t--offset | -o             : Force non-aligned allocation.\n");
-   fprintf(f, "\t--length | -n <int value> : Array length. (50\% of L1 data cache)\n");
+   fprintf(f, "\t--length | -n <int value> : Array length. (50%% of L1 data cache)\n");
 }
 
 int main (int argc, char * argv[])
@@ -231,7 +232,7 @@ int main (int argc, char * argv[])
       }
 
       for (int i = 0; i < size-1; ++i)
-         if (std::abs(y[i+1] - y[i]) > 0.0)
+         if (std::fabs(y[i+1] - y[i]) > 0.0)
             tDelta = std::min(tDelta, std::abs(y[i+1]-y[i]));
 
       fprintf(stderr, "Smallest detectable time = %e (ms)\n", tDelta*1000.0);

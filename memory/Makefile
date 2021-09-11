@@ -128,6 +128,9 @@ cache_reuse_omp: cache_reuse.cpp $(COMMON_OBJS)
 cache_struct_omp: cache_struct.cpp $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o cache_struct_omp $(OMP) $^ $(LDFLAGS)
 
+loop_pipeline: loop_pipeline.cpp $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o loop_pipeline $^ $(LDFLAGS)
+
 ludec: ludec.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o ludec $^ $(LDFLAGS)
 

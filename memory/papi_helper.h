@@ -21,21 +21,21 @@
    } \
 }
 
-std::vector<int>
-papi_get_events(void)
+void
+papi_get_events( std::vector<int> &papi_events )
 {
-   std::vector<int> papi_events;
-
 #ifdef WITH_PAPI
-
-   std::vector< std::string > papi_event_names;
 
    char *papi_env = getenv("PAPI_EVENTS");
    if (papi_env)
    {
+      std::vector< std::string > papi_event_names;
+
       printf("papi_env %s\n", papi_env);
+
       char *str = papi_env;
       size_t len = strlen(papi_env);
+
       while (str < papi_env + len)
       {
          char *next = strchr( str, ',' );
@@ -48,22 +48,24 @@ papi_get_events(void)
             break;
          }
       }
-   }
 
-   for (int i = 0; i < papi_event_names.size(); ++i)
-   {
-      int this_event = 0 | PAPI_NATIVE_MASK;
-      int retval = PAPI_event_name_to_code( const_cast<char*>( papi_event_names[i].c_str() ), &this_event );
-      if (retval != PAPI_OK) {
-         fprintf(stderr,"PAPI: Error calling PAPI_event_code_to_name %d\n", retval);
-         exit(-1);
+      papi_events.clear();
+
+      for (int i = 0; i < papi_event_names.size(); ++i)
+      {
+         int this_event = 0 | PAPI_NATIVE_MASK;
+         int retval = PAPI_event_name_to_code( const_cast<char*>( papi_event_names[i].c_str() ), &this_event );
+         if (retval != PAPI_OK) {
+            fprintf(stderr,"PAPI: Error calling PAPI_event_code_to_name %d\n", retval);
+            exit(-1);
+         }
+         printf("PAPI event %s %x\n", papi_event_names[i].c_str(), this_event);
+         papi_events.push_back( this_event );
       }
-      printf("PAPI event %s %x\n", papi_event_names[i].c_str(), this_event);
-      papi_events.push_back( this_event );
    }
 #endif
 
-   return papi_events;
+   return;
 }
 
 int papi_start(void)

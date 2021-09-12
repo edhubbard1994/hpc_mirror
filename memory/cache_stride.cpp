@@ -136,7 +136,7 @@ int main (int argc, char * argv[])
          std::string key = argv[i++];
          if (key == "--iters" || key == "-i")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             niters = atoi( argv[i++] );
          }
          else if (key == "--offset" || key == "-o")
@@ -149,22 +149,22 @@ int main (int argc, char * argv[])
          }
          else if (key == "--length" || key == "-n")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             length = atoi( argv[i++] );
          }
          else if (key == "--max" || key == "-m")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             max_stride = atoi( argv[i++] );
          }
          else if (key == "--alpha" || key == "-a")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             alpha = atof( argv[i++] );
          }
          else if (key == "--beta" || key == "-b")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             beta = atof( argv[i++] );
          }
          else if (key == "--help" || key == "-h")
@@ -176,6 +176,8 @@ int main (int argc, char * argv[])
 
 #ifdef WITH_PAPI
    papi_start();
+
+   papi_get_events( papi_events );
 
    if (PAPI_num_counters() < papi_events.size()) {
       fprintf(stderr,"PAPI: not enough hardware counters available %d %d!\n", PAPI_num_counters(), papi_events.size());

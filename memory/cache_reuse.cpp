@@ -141,7 +141,7 @@ int main (int argc, char * argv[])
          std::string key = argv[i++];
          if (key == "--niters" || key == "-i")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             niters = atoi( argv[i++] );
          }
          else if (key == "--padding" || key == "-p")
@@ -154,22 +154,22 @@ int main (int argc, char * argv[])
          }
          else if (key == "--min" || key == "-m")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             min_length = atoi( argv[i++] );
          }
          else if (key == "--max" || key == "-m")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             max_length = atoi( argv[i++] );
          }
          else if (key == "--alpha" || key == "-a")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             alpha = atof( argv[i++] );
          }
          else if (key == "--beta" || key == "-b")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             beta = atof( argv[i++] );
          }
          else if (key == "--help" || key == "-h")

@@ -136,7 +136,7 @@ int main (int argc, char * argv[])
          std::string key = argv[i++];
          if (key == "--niters" || key == "-i")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             niters = atoi( argv[i++] );
          }
          else if (key == "--pad" || key == "-p")
@@ -149,17 +149,17 @@ int main (int argc, char * argv[])
          }
          else if (key == "--cols" || key == "-c")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             cols = atoi( argv[i++] );
          }
          else if (key == "--rows" || key == "-r")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             rows = atoi( argv[i++] );
          }
          else if (key == "--beta" || key == "-b")
          {
-            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key); show_usage(stderr); return 1; }
+            if (i >= argc) { fprintf(stderr,"Missing value for %s\n", key.c_str()); show_usage(stderr); return 1; }
             beta = atof( argv[i++] );
          }
          else if (key == "--help" || key == "-h")
@@ -171,6 +171,8 @@ int main (int argc, char * argv[])
 
 #ifdef WITH_PAPI
    papi_start();
+
+   papi_get_events( papi_events );
 
    if (PAPI_num_counters() < papi_events.size()) {
       fprintf(stderr,"PAPI: not enough hardware counters available %d %d!\n", PAPI_num_counters(), papi_events.size());

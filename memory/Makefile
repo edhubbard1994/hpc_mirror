@@ -4,7 +4,7 @@ CXX	?= g++
 CXXFLAGS= -O3 -g -I. -std=c++11 -I$(COMMON)
 LDFLAGS	= -lrt
 
-OMP = -fopenmp
+OMPFLAGS = -fopenmp
 
 CXXFLAGS += -DL1SIZE=`getconf LEVEL1_DCACHE_SIZE`
 CXXFLAGS += -DL2SIZE=`getconf LEVEL2_CACHE_SIZE`
@@ -31,19 +31,20 @@ else
  endif
 endif
 
+INTEL_FLAGS = -xMIC-AVX512 #-no-vec
+#INTEL_FLAGS += -xCORE-AVX512 -qopt-zmm-usage=high #-no-vec
+INTEL_FLAGS += -qopt-report=5
+INTEL_FLAGS += -qopenmp-simd
+INTEL_LDFLAGS += -lifcore
+
 ifeq ($(CXX),icpc)
-#CXXFLAGS += -xMIC-AVX512 #-no-vec
-CXXFLAGS += -xCORE-AVX512 -qopt-zmm-usage=high #-no-vec
-CXXFLAGS += -qopt-report=5
-CXXFLAGS += -qopenmp-simd
-LDFLAGS += -lifcore
+CXXFLAGS += $(INTEL_FLAGS)
+LDFLAGS += $(INTEL_FLAGS)
 endif
 
 ifeq ($(FTN),ifort)
-FTNFLAGS += -xCORE-AVX512 -qopt-zmm-usage=high -no-vec
-FTNFLAGS += -qopt-report=5
-FTNFLAGS += -qopenmp-simd
-LDFLAGS += -lifcore
+FTNFLAGS += $(INTEL_FLAGS)
+LDFLAGS += $(INTEL_FLAGS)
 endif
 
 ifeq ($(CXX),g++)
@@ -102,31 +103,31 @@ MATMUL_OBJS = matmul.o matmul_kernels.o matmul_blas.o
 	$(FTN) $(FTNFLAGS) -c $<
 
 %_omp.o : %.f90
-	$(FTN) $(OMP) $(FTNFLAGS) -c $< -o $@
+	$(FTN) $(OMPFLAGS) $(FTNFLAGS) -c $< -o $@
 
-%_omp.o : %.cpp
-	$(CXX) $(OMP) $(CXXFLAGS) -c $< -o $@
+#%_omp.o : %.cpp
+#	$(CXX) $(OMPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 matmul: $(MATMUL_OBJS) $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o matmul $^ $(LDFLAGS)
 
 matmul_omp: $(MATMUL_OBJS:.o=_omp.o) $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) $(OMP) -o $@ $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -o $@ $^ $(LDFLAGS)
 
-cache_stride: cache_stride.cpp $(COMMON_OBJS)
+cache_stride: cache_stride.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o cache_stride $^ $(LDFLAGS)
 
-cache_stride_omp: cache_stride.cpp $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o cache_stride_omp $(OMP) $^ $(LDFLAGS)
+cache_stride_omp: cache_stride_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_stride_omp $(OMPFLAGS) $^ $(LDFLAGS)
 
-cache_assoc_omp: cache_assoc.cpp $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o cache_assoc_omp $(OMP) $^ $(LDFLAGS)
+cache_assoc_omp: cache_assoc_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_assoc_omp $(OMPFLAGS) $^ $(LDFLAGS)
 
-cache_reuse_omp: cache_reuse.cpp $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o cache_reuse_omp $(OMP) $^ $(LDFLAGS)
+cache_reuse_omp: cache_reuse_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_reuse_omp $(OMPFLAGS) $^ $(LDFLAGS)
 
-cache_struct_omp: cache_struct.cpp $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) -o cache_struct_omp $(OMP) $^ $(LDFLAGS)
+cache_struct_omp: cache_struct_omp.o $(COMMON_OBJS)
+	$(CXX) $(CXXFLAGS) -o cache_struct_omp $(OMPFLAGS) $^ $(LDFLAGS)
 
 loop_pipeline: loop_pipeline.cpp $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o loop_pipeline $^ $(LDFLAGS)
@@ -135,7 +136,7 @@ ludec: ludec.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o ludec $^ $(LDFLAGS)
 
 ludec_omp: ludec_omp.o $(COMMON_OBJS)
-	$(CXX) $(CXXFLAGS) $(OMP) -o ludec_omp $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(OMPFLAGS) -o ludec_omp $^ $(LDFLAGS)
 
 omp: $(EXEC_OMP)
 

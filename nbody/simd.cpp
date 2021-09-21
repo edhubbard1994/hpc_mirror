@@ -11,12 +11,15 @@
 #include <limits>
 #include <cmath>
 
-#include <my_timer.h>
-#include <aligned_allocator.h>
+#include "timer.h"
+#include "aligned_allocator.h"
+#include "dummy.h"
 
 #ifndef __RESTRICT
-#  define __RESTRICT
+# define __RESTRICT
 #endif
+
+static bool verbose = false;
 
 template <typename ValueType>
 void invSqrt (const int n)
@@ -33,51 +36,67 @@ void invSqrt (const int n)
       count[i] = 0;
    }
 
-   const int nloops = 10;
+   int nloops = 1;
 
    int sum = 0, min = 10000, max = 0;
    ValueType ysum = 0;
 
-   myTimer_t t_start = getTimeStamp();
+   double runtime = 0;
 
-   for (int loop = 0; loop < nloops; ++loop)
+   while (1)
    {
-      for (int i = 0; i < n; ++i)
-      {
-         ValueType yi = 1.0;
-         //ValueType yi = x[i];
+      for (int i = 0; i < n; ++i) count[i] = 0;
 
-         ValueType delta = 1.0;
-         int niters = 0;
-         while ( delta > 10*std::numeric_limits<ValueType>::epsilon() and niters++ < 20 )
+      TimerType t_start = getTimeStamp();
+
+      for (int loop = 0; loop < nloops; ++loop)
+      {
+         for (int i = 0; i < n; ++i)
          {
-            ValueType ynext = half * yi * (three - x[i] * yi * yi );
-            delta = fabs( ynext - yi );
-            //printf("%d %e %e %e %e\n", niters, yi, delta, ynext, 1.0/sqrt(x[i]));
-            yi = ynext;
+            ValueType yi = 1.0;
+            //ValueType yi = x[i];
+
+            ValueType delta = 1.0;
+            int niters = 0;
+            while ( delta > 10*std::numeric_limits<ValueType>::epsilon() and niters++ < 20 )
+            {
+               ValueType ynext = half * yi * (three - x[i] * yi * yi );
+               delta = fabs( ynext - yi );
+               //printf("%d %e %e %e %e\n", niters, yi, delta, ynext, 1.0/sqrt(x[i]));
+               yi = ynext;
+            }
+
+            y[i] = yi;
+            count[i] += niters;
          }
 
-         y[i] = yi;
-         count[i] = niters;
+         dummy_function( n, x, y, count );
       }
+
+      TimerType t_stop = getTimeStamp();
+
+      sum = 0; min = 10000; max = 0;
 
       for (int i = 0; i < n; ++i) {
          sum += count[i];
          min = std::min(min, count[i]);
          max = std::max(max, count[i]);
-         ysum += y[i];
       }
 
-      //memcpy( &y[loop], &y[0], sizeof(ValueType) );
-      srand( y[loop] );
-   }
+      min /= nloops;
+      max /= nloops;
 
-   myTimer_t t_stop = getTimeStamp();
+      runtime = getElapsedTime( t_start, t_stop );
+      if (runtime > 0.1)
+         break;
+      else
+         nloops *= 2;
+   }
 
    ValueType err2 = 0, ref2 = 0, errmax = 0;
    for (int i = 0; i < n; ++i)
    {
-      if (i < 10) printf("%e %e\n", y[i], 1.0/sqrt(x[i]));
+      if (i < 10 and verbose) printf("%e %e\n", y[i], 1.0/sqrt(x[i]));
       ValueType ref = 1.0/sqrt(x[i]);
       ValueType diff = y[i] - ref;
       err2 += diff*diff;
@@ -85,7 +104,7 @@ void invSqrt (const int n)
       errmax = fmax( errmax, fabs(diff) );
    }
 
-   printf("invSqrt: %f (ns) %.2f %d %d %e %e\n", 1e9*getElapsedTime( t_start, t_stop )/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax);
+   printf("invSqrt:     %f (ns) %.2f %d %d %e %e\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax);
 
    free(x);
    free(y);
@@ -107,34 +126,56 @@ void invSqrt (const int n)
 #include <vcl/vectorclass.h>
 #include <vcl/vectormath_exp.h>
 
+template <typename T, int width> struct vcl_type;
+template <typename V> struct vcl_mask_type;
+
 #if (MAX_VECTOR_SIZE == 128)
+
 # define VCL_DBL_TYPE Vec2d
 # define VCL_BOOL_TYPE Vec2db
 # define VCL_LONG_TYPE Vec2q
+
 #elif (MAX_VECTOR_SIZE == 256)
+
 # define VCL_DBL_TYPE Vec4d
 # define VCL_BOOL_TYPE Vec4db
 # define VCL_LONG_TYPE Vec4q
+
+constexpr int SimdWidth = 4;
+template <> struct vcl_type<double, 4> { using type = Vec4d; };
+template <> struct vcl_type<   int, 4> { using type = Vec4i; };
+template <> struct vcl_type<   int, 8> { using type = Vec8i; };
+template <> struct vcl_type< float, 8> { using type = Vec8f; };
+template <> struct vcl_type<  long, 4> { using type = Vec4q; };
+
+template <> struct vcl_mask_type< Vec4d > { using type = Vec4db; };
+template <> struct vcl_mask_type< Vec4q > { using type = Vec4qb; };
+
 #elif (MAX_VECTOR_SIZE == 512)
+
 # define VCL_DBL_TYPE Vec8d
 # define VCL_BOOL_TYPE Vec8db
 # define VCL_LONG_TYPE Vec8q
+
+template <> struct vcl_mask_type< Vec8d > { using type = Vec8db; };
+
 #else
 # error 'Unknown MAX_VECTOR_SIZE in VCL'
 #endif
+
 
 #include <immintrin.h>
 #include <vcl/vectorclass.h>
 #include <vcl/vectormath_exp.h>
 
-template <typename BoolSimdType>
-bool any( const BoolSimdType &x ) { return horizontal_or(x); }
+template <typename SimdMask>
+bool any( const SimdMask &x ) { return horizontal_or(x); }
 
-template <typename BoolSimdType>
-bool all( const BoolSimdType &x ) { return horizontal_and(x); }
+template <typename SimdMask>
+bool all( const SimdMask &x ) { return horizontal_and(x); }
 
-template <typename BoolSimdType, typename SimdType>
-SimdType where( const BoolSimdType &mask, const SimdType &a, const SimdType &b) {
+template <typename SimdMask, typename SimdType>
+SimdType where( const SimdMask &mask, const SimdType &a, const SimdType &b) {
    return select( mask, a, b );
 }
 
@@ -151,81 +192,103 @@ void invSqrtSimd (const int n)
       count[i] = 0;
    }
 
-   typedef VCL_DBL_TYPE simd_type;
-   typedef VCL_LONG_TYPE int_simd_type;
-   typedef VCL_BOOL_TYPE bool_type;
+//   typedef VCL_DBL_TYPE simd_type;
+//   typedef VCL_LONG_TYPE int_simd_type;
+//   typedef VCL_BOOL_TYPE mask_type;
 
-   const int VL = sizeof(simd_type) / sizeof(double);
+   const int VL = SimdWidth;
+   using vector_type  = vcl_type<double, VL>::type;
+   using counter_type = vcl_type<long, VL>::type;  // This must match the vector type.
+   using mask_type    = vcl_mask_type< vector_type >::type;
 
-   const int nloops = 10;
+   int nloops = 1;
 
-   int sum = 0, min = 10000, max = 0, total_iters = 0;
-   ValueType ysum = 0;
+   int min = 10000, max = 0, sum = 0;
+   int total_iters = 0;
+   double runtime = 0;
 
-   myTimer_t t_start = getTimeStamp();
-
-   for (int loop = 0; loop < nloops; ++loop)
+   while (1)
    {
-      for (int i = 0; i < n; i += VL)
+      min = 10000;
+      max = 0;
+      total_iters = 0;
+      sum = 0;
+      for (int i = 0; i < n; ++i) count[i] = 0;
+
+      TimerType t_start = getTimeStamp();
+
+      for (int loop = 0; loop < nloops; ++loop)
       {
-         simd_type yi = 1.0;
-         simd_type xi;
-
-         if (i + VL <= n)
-            xi.load_a( &x[i] );
-         else
+         for (int i = 0; i < n; i += VL)
          {
-            xi = x[i]; // Pack all with the same problem;
-            xi.load_partial( n-i, &x[i] ); // Update just the value terms.
+            vector_type yi = 1.0;
+            vector_type xi;
+
+            if (i + VL <= n)
+               xi.load_a( &x[i] );
+            else
+            {
+               xi = x[i]; // Pack all with the same problem;
+               xi.load_partial( n-i, &x[i] ); // Update just the value terms.
+            }
+
+            vector_type delta = 1.0;
+
+            mask_type not_done = true;
+
+            const vector_type half(0.5);
+            const vector_type three(3);
+
+            counter_type niters_i ( 0);
+            while ( any( not_done ) )
+            {
+               vector_type ynext = half * yi * (three - xi * yi * yi );
+               delta = abs( ynext - yi );
+               //printf("%d %e %e %e %e %e %e %e\n", niters, yi[0], yi[1], delta[0], delta[1], ynext[0], ynext[1], 1.0/sqrt(x[i]));
+               yi = where( not_done, ynext, yi );
+               niters_i = where( not_done, niters_i + 1, niters_i );
+
+               not_done = delta > 10*std::numeric_limits<ValueType>::epsilon();
+
+               total_iters ++;
+            }
+
+            if (i + VL <= n )
+               yi.store_a( &y[i] );
+            else
+               yi.store_partial( n-i, &y[i] );
+
+            for (int ii = 0; ii < VL && i+ii < n; ++ii)
+               count[i+ii] += niters_i[ii];
          }
 
-         simd_type delta = 1.0;
-
-         bool_type notDone = true;
-
-         const simd_type half(0.5);
-         const simd_type three(3);
-
-         int_simd_type niters_i ( 0);
-         while ( any( notDone ) )
-         {
-            simd_type ynext = half * yi * (three - xi * yi * yi );
-            delta = abs( ynext - yi );
-            //printf("%d %e %e %e %e %e %e %e\n", niters, yi[0], yi[1], delta[0], delta[1], ynext[0], ynext[1], 1.0/sqrt(x[i]));
-            yi = where( notDone, ynext, yi );
-            niters_i = where( notDone, niters_i + 1, niters_i );
-
-            notDone = delta > 10*std::numeric_limits<ValueType>::epsilon();
-
-            total_iters ++;
-         }
-
-         if (i + VL <= n )
-            yi.store_a( &y[i] );
-         else
-            yi.store_partial( n-i, &y[i] );
-
-         for (int ii = 0; ii < VL && i+ii < n; ++ii)
-            count[i+ii] = niters_i[ii];
+         dummy_function( n, x );
+         dummy_function( n, y );
+         dummy_function( n, count );
       }
+
+      TimerType t_stop = getTimeStamp();
 
       for (int i = 0; i < n; ++i) {
-         sum += count[i];
          min = std::min(min, count[i]);
          max = std::max(max, count[i]);
-         ysum += y[i];
+         sum += count[i];
       }
 
-      //memcpy( &y[loop], &y[0], sizeof(ValueType) );
-      srand( y[loop] );
-   }
+      min /= nloops;
+      max /= nloops;
 
-   myTimer_t t_stop = getTimeStamp();
+      runtime = getElapsedTime( t_start, t_stop );
+      if (runtime > 0.1)
+         break;
+      else
+         nloops *= 2;
+   }
 
    ValueType err2 = 0, ref2 = 0, errmax = 0;
    for (int i = 0; i < n; ++i)
    {
-      if (i < 10) printf("%e %e\n", y[i], 1.0/sqrt(x[i]));
+      if (i < 10 and verbose) printf("%e %e\n", y[i], 1.0/sqrt(x[i]));
       ValueType ref = 1.0/sqrt(x[i]);
       ValueType diff = y[i] - ref;
       err2 += diff*diff;
@@ -233,12 +296,13 @@ void invSqrtSimd (const int n)
       errmax = fmax( errmax, fabs(diff) );
    }
 
-   printf("invSqrtSimd: %f (ns) %.2f %d %d %e %e %d %.2f\n", 1e9*getElapsedTime( t_start, t_stop )/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax, VL, float(total_iters*VL)/(n*nloops));
+   printf("invSqrtSimd: %f (ns) %.2f %d %d %e %e %d %.2f\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax, VL, float(total_iters*VL)/(n*nloops));
 
    free(x);
    free(y);
    free(count);
 
+/*
    {
       __m512d x{0,1,2,3,4,5,6,7};
       __m512d y{1,1,2,3,4,5,6,7};
@@ -249,7 +313,7 @@ void invSqrtSimd (const int n)
 
       auto mask2 = _mm512_cmplt_pd_mask(x,z);
       printf("mask2: %x %d\n", mask2, bool(mask2));
-   }
+   }*/
 }
 
 #endif
@@ -283,11 +347,11 @@ void alias (const int n)
          const int j = i % n;
          const int offset = x[j] * j; // [0,8)
 
-         myTimer_t t_start = getTimeStamp();
+         TimerType t_start = getTimeStamp();
 
          alias_1( x+offset, y, n-offset );
 
-         myTimer_t t_stop = getTimeStamp();
+         TimerType t_stop = getTimeStamp();
 
          printf("alias: %f (ns) 0 offset %d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), offset);
       }
@@ -295,11 +359,11 @@ void alias (const int n)
       {
          const int offset = 2;
 
-         myTimer_t t_start = getTimeStamp();
+         TimerType t_start = getTimeStamp();
 
          alias_1( x+offset, y, n-offset );
 
-         myTimer_t t_stop = getTimeStamp();
+         TimerType t_stop = getTimeStamp();
 
          printf("alias: %f (ns) 1 offset=%d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), offset);
       }
@@ -308,11 +372,11 @@ void alias (const int n)
          const int j = i % n;
          const int offset = std::min(n, int(x[j] * 32)); // [0,32)
 
-         myTimer_t t_start = getTimeStamp();
+         TimerType t_start = getTimeStamp();
 
          alias_1( x, x + offset, n-offset );
 
-         myTimer_t t_stop = getTimeStamp();
+         TimerType t_stop = getTimeStamp();
 
          printf("alias: %f (ns) 2 n-%d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), j);
       }
@@ -348,12 +412,33 @@ void histogram (const int n, const int nbins)
       x[i] = r;
    }
 
-   myTimer_t t_start = getTimeStamp();
+   int jloops = 1;
+   double runtime = 0;
 
-   histogram( x, n, count, nbins );
+   while (1)
+   {
+      for (int i = 0; i < nbins; ++i)
+         count[i] = 0;
 
-   myTimer_t t_stop = getTimeStamp();
-   printf("histogram: %f (ns) nbins= %d\n", 1e9*getElapsedTime( t_start, t_stop )/n, nbins);
+      TimerType t_start = getTimeStamp();
+
+      for (int j = 0; j < jloops; ++j)
+      {
+         histogram( x, n, count, nbins );
+
+         dummy_function( n, x, count );
+      }
+
+      TimerType t_stop = getTimeStamp();
+
+      runtime = getElapsedTime( t_start, t_stop );
+      if (runtime > 0.1)
+         break;
+      else
+         jloops *= 2;
+   }
+
+   printf("histogram: %f (ns) nbins= %d\n", 1e9*runtime/(n*jloops), nbins);
 }
 
 template <typename ValueType>
@@ -373,13 +458,13 @@ void run_tests (const int n)
       histogram(n, bins[i]);
 }
 
-void help(const char* prg)
+void help (FILE *fp)
 {
-   if (prg) fprintf(stderr,"%s:\n", prg);
-   fprintf(stderr,"\t--help | -h     : Print help message.\n");
-   fprintf(stderr,"\t--nelems | -n   : # of particles (100).\n");
-   fprintf(stderr,"\t--float | -f    : Use 32-bit floats.\n");
-   fprintf(stderr,"\t--double | -d   : Use 64-bit doubles. (default)\n");
+   fprintf(fp,"--help    | -h   : Print help message.\n");
+   fprintf(fp,"--nelems  | -n   : # of elements (100).\n");
+   fprintf(fp,"--float   | -f   : Use 32-bit floats.\n");
+   fprintf(fp,"--double  | -d   : Use 64-bit doubles. (default)\n");
+   fprintf(fp,"--verbose | -v\n");
 }
 
 int main (int argc, char* argv[])
@@ -394,11 +479,11 @@ int main (int argc, char* argv[])
    {
 #define check_index(i,str) \
    if ((i) >= argc) \
-      { fprintf(stderr,"Missing 2nd argument for %s\n", str); help(argv[0]); return 1; }
+      { fprintf(stderr,"Missing 2nd argument for %s\n", str); help(stderr); return 1; }
 
       if ( strcmp(argv[i],"-h") == 0 || strcmp(argv[i],"--help") == 0)
       {
-         help(argv[0]);
+         help(stdout);
          return 0;
       }
       else if (strcmp(argv[i],"--nelems") == 0 || strcmp(argv[i],"-n") == 0)
@@ -406,7 +491,7 @@ int main (int argc, char* argv[])
          check_index(i+1,"--nelems|-n");
          i++;
          if (not(isdigit(*argv[i])))
-            { fprintf(stderr,"Invalid value for option \"--nelems\" %s\n", argv[i]); help(argv[0]); return 1; }
+            { fprintf(stderr,"Invalid value for option \"--nelems\" %s\n", argv[i]); help(stderr); return 1; }
          n = atoi( argv[i] );
       }
       else if (strcmp(argv[i],"--double") == 0 || strcmp(argv[i],"-d") == 0)
@@ -417,10 +502,14 @@ int main (int argc, char* argv[])
       {
          useDouble = false;
       }
+      else if (strcmp(argv[i],"--verbose") == 0 || strcmp(argv[i],"-v") == 0)
+      {
+         verbose = true;
+      }
       else
       {
          fprintf(stderr,"Unknown option %s\n", argv[i]);
-         help(argv[0]);
+         help(stderr);
          return 1;
       }
    }

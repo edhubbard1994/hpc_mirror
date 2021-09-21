@@ -69,4 +69,4 @@ simd: simd.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o simd $^ $(LDFLAGS)
 
 clean: clean_common
-	/bin/rm -fv $(EXEC) *.o *.optrpt
+	/bin/rm -fv $(EXEC) *.o *.optrpt *.d

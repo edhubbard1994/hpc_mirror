@@ -104,7 +104,7 @@ void invSqrt (const int n)
       errmax = fmax( errmax, fabs(diff) );
    }
 
-   printf("invSqrt:     %f (ns) %.2f %d %d %e %e\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax);
+   printf("invSqrt:     %10.5f (ns) %.2f %d %d %e %e\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax);
 
    free(x);
    free(y);
@@ -157,7 +157,15 @@ template <> struct vcl_mask_type< Vec4q > { using type = Vec4qb; };
 # define VCL_BOOL_TYPE Vec8db
 # define VCL_LONG_TYPE Vec8q
 
+constexpr int SimdWidth = 8;
+template <> struct vcl_type<double,  8> { using type = Vec8d; };
+template <> struct vcl_type<   int,  8> { using type = Vec8i; };
+template <> struct vcl_type<   int, 16> { using type = Vec16i; };
+template <> struct vcl_type< float, 16> { using type = Vec16f; };
+template <> struct vcl_type<  long,  8> { using type = Vec8q; };
+
 template <> struct vcl_mask_type< Vec8d > { using type = Vec8db; };
+template <> struct vcl_mask_type< Vec8q > { using type = Vec8qb; };
 
 #else
 # error 'Unknown MAX_VECTOR_SIZE in VCL'
@@ -296,7 +304,7 @@ void invSqrtSimd (const int n)
       errmax = fmax( errmax, fabs(diff) );
    }
 
-   printf("invSqrtSimd: %f (ns) %.2f %d %d %e %e %d %.2f\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax, VL, float(total_iters*VL)/(n*nloops));
+   printf("invSqrtSimd: %10.5f (ns) %.2f %d %d %e %e %d %.2f\n", 1e9*runtime/(n*nloops), float(sum)/(n*nloops), min, max, sqrt(err2/ref2), errmax, VL, float(total_iters*VL)/(n*nloops));
 
    free(x);
    free(y);
@@ -322,10 +330,14 @@ void invSqrtSimd (const int n)
 #define __RESTRICT
 #endif
 
+static double beta = 1.0, alpha = 0.5;
+static int    flip = 0;
+
 void alias_kernel (const double *__RESTRICT x, double *__RESTRICT y, const int n)
 {
    for (int i = 0; i < n; ++i)
-      y[i] = sqrt( x[i] );
+      y[i] = beta * y[i] + alpha * x[i];
+      //y[i] = sqrt( x[i] );
 }
 
 void test_alias (const int n)
@@ -334,10 +346,12 @@ void test_alias (const int n)
 
    ValueType *x = aligned_alloc<ValueType>(n);
    ValueType *y = aligned_alloc<ValueType>(n);
+   ValueType *y_ref = aligned_alloc<ValueType>(n);
 
    for (int i = 0; i < n; ++i) {
       x[i] = ValueType( rand() ) / RAND_MAX;
       y[i] = x[i];
+      y_ref[i] = x[i];
    }
 
    int offsets[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -353,11 +367,15 @@ void test_alias (const int n)
       double runtime = 0;
       while (1)
       {
+         for (int i = 0; i < n; ++i)
+            y[i] = x[i];
+
          TimerType t_start = getTimeStamp();
 
          for (int t = 0; t < ntests; ++t)
          {
-            alias_kernel ( x+offset, y, n-offset );
+            double *p = ( flip ) ? y : x;
+            alias_kernel ( p+offset, y, n-offset );
 
             dummy_function( n, x, y );
          }
@@ -373,28 +391,51 @@ void test_alias (const int n)
             break;
       }
 
-      printf("alias: %10.5f (ns) offset %2d\n", 1e9*runtime/(n-offset), offset);
+      for (int i = 0; i < n; ++i)
+         y_ref[i] = x[i];
+
+      for (int t = 0; t < ntests; ++t)
+         for (int i = 0; i < n-offset; ++i)
+            y_ref[i] = beta * y_ref[i] + alpha * x[i+offset];
+
+      double err2 = 0, ref2 = 0, err0 = 0;
+      for (int i = 0; i < n; ++i) {
+         double diff = fabs( y_ref[i] - y[i] );
+         err2 += diff*diff;
+         ref2 += y_ref[i]*y_ref[i];
+         err0 = std::max( err0, diff );
+      }
+
+      err2 = sqrt(err2 / ref2);
+      bool success = ( err2 < 10*DBL_EPSILON );
+
+      printf("alias: %10.5f (ns) offset %2d %s\n", 1e9*runtime/((n-offset)*ntests), offset, (success) ? "Passed" : "Failed");
    }
+
+   free(x);
+   free(y);
+   free(y_ref);
 }
 
-void histogram (const double *x, const int n, int *count, const int nbins)
+template <typename T>
+void histogram (const T *x, const int n, int *count, const int nbins)
 {
-   const double dx = 1.0 / nbins;
-   const double one_over_dx = 1.0 / dx;
+   const T dx = T(1) / nbins;
+   const T one_over_dx = T(1) / dx;
 
-   //#pragma omp simd aligned( x, count : 64 )
+   #pragma omp simd aligned( x, count : 64 )
    for (int i = 0; i < n; ++i)
    {
-      int bid = floor( x[i] / dx );
-    //int bid = floor( x[i] * one_over_dx );
+     // int bid = floor( x[i] / dx );
+     // int bid = floor( x[i] * one_over_dx );
+      int bid = x[i] * one_over_dx;
       ++ count[ bid ];
    }
 }
 
+template <typename ValueType>
 void histogram (const int n, const int nbins)
 {
-   typedef double ValueType;
-
    ValueType *x = aligned_alloc<ValueType>(n);
 
    int *count = aligned_alloc<int>(nbins);
@@ -403,7 +444,8 @@ void histogram (const int n, const int nbins)
       count[i] = 0;
 
    for (int i = 0; i < n; ++i) {
-      ValueType r = ValueType( rand() ) / RAND_MAX; // [0,1)
+      //ValueType r = ValueType( rand() ) / RAND_MAX; // [0,1)
+      ValueType r = i / ValueType(n);
       x[i] = r;
    }
 
@@ -447,10 +489,14 @@ void run_tests (const int n)
 
    test_alias(n);
 
-   int bins[] = {1000, 100, 10, 8, 4, 2, 1};
+   int bins[] = {10000, 2000, 1000, 200, 100, 20, 10, 8, 4, 2, 1};
 
-   for (int i = 0; i < sizeof(bins)/sizeof(bins[0]); i++)
-      histogram(n, bins[i]);
+   for (int i = 0; i < sizeof(bins)/sizeof(bins[0]); i++) {
+      histogram<float>(n, bins[i]);
+   }
+   for (int i = 0; i < sizeof(bins)/sizeof(bins[0]); i++) {
+      histogram<double>(n, bins[i]);
+   }
 }
 
 void help (FILE *fp)
@@ -489,6 +535,18 @@ int main (int argc, char* argv[])
             { fprintf(stderr,"Invalid value for option \"--nelems\" %s\n", argv[i]); help(stderr); return 1; }
          n = atoi( argv[i] );
       }
+      else if (strcmp(argv[i],"--alpha") == 0 || strcmp(argv[i],"-a") == 0)
+      {
+         check_index(i+1,"--alpha");
+         i++;
+         alpha = atof( argv[i] );
+      }
+      else if (strcmp(argv[i],"--beta") == 0 || strcmp(argv[i],"-b") == 0)
+      {
+         check_index(i+1,"--beta");
+         i++;
+         beta = atof( argv[i] );
+      }
       else if (strcmp(argv[i],"--double") == 0 || strcmp(argv[i],"-d") == 0)
       {
          useDouble = true;
@@ -496,6 +554,10 @@ int main (int argc, char* argv[])
       else if (strcmp(argv[i],"--float") == 0 || strcmp(argv[i],"-f") == 0)
       {
          useDouble = false;
+      }
+      else if (strcmp(argv[i],"--alias") == 0)
+      {
+         flip = true;
       }
       else if (strcmp(argv[i],"--verbose") == 0 || strcmp(argv[i],"-v") == 0)
       {

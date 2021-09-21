@@ -4,6 +4,8 @@ DBG      ?=
 CXX      ?= g++
 CXXFLAGS  = -O3 -I. -std=c++11 -I$(COMMON) $(DBG)
 
+#CXXFLAGS += -no-vec
+
 ifeq ($(CXX),icpc)
   CXXFLAGS += -xHost
   CXXFLAGS += -D__RESTRICT=restrict -restrict
@@ -69,4 +71,4 @@ simd: simd.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o simd $^ $(LDFLAGS)
 
 clean: clean_common
-	/bin/rm -fv $(EXEC) *.o *.optrpt *.d
+	/bin/rm -fv $(EXEC) *.o *.optrpt *.d *.s

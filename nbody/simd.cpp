@@ -322,14 +322,13 @@ void invSqrtSimd (const int n)
 #define __RESTRICT
 #endif
 
-void alias_1 (const double *__RESTRICT x, double *__RESTRICT y, const int n)
+void alias_kernel (const double *__RESTRICT x, double *__RESTRICT y, const int n)
 {
-   //#pragma vector aligned
    for (int i = 0; i < n; ++i)
       y[i] = sqrt( x[i] );
 }
 
-void alias (const int n)
+void test_alias (const int n)
 {
    typedef double ValueType;
 
@@ -341,45 +340,41 @@ void alias (const int n)
       y[i] = x[i];
    }
 
-   for (int i = 0; i < 12; ++i)
-      if (i % 3 == 0)
-      {
-         const int j = i % n;
-         const int offset = x[j] * j; // [0,8)
+   int offsets[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+   const int noffsets = sizeof(offsets)/sizeof(offsets[0]);
 
+   dummy_function( noffsets, offsets );
+
+   for (int e = 0; e < noffsets; ++e)
+   {
+      const int offset = offsets[e];
+
+      int ntests = 10;
+      double runtime = 0;
+      while (1)
+      {
          TimerType t_start = getTimeStamp();
 
-         alias_1( x+offset, y, n-offset );
+         for (int t = 0; t < ntests; ++t)
+         {
+            alias_kernel ( x+offset, y, n-offset );
+
+            dummy_function( n, x, y );
+         }
 
          TimerType t_stop = getTimeStamp();
 
-         printf("alias: %f (ns) 0 offset %d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), offset);
+         runtime = getElapsedTime( t_start, t_stop );
+         if (runtime < 0.01) {
+            ntests *= 2;
+            dummy_function( n, x, y );
+         }
+         else
+            break;
       }
-      else if (i % 3 == 1)
-      {
-         const int offset = 2;
 
-         TimerType t_start = getTimeStamp();
-
-         alias_1( x+offset, y, n-offset );
-
-         TimerType t_stop = getTimeStamp();
-
-         printf("alias: %f (ns) 1 offset=%d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), offset);
-      }
-      else if (i % 3 == 2)
-      {
-         const int j = i % n;
-         const int offset = std::min(n, int(x[j] * 32)); // [0,32)
-
-         TimerType t_start = getTimeStamp();
-
-         alias_1( x, x + offset, n-offset );
-
-         TimerType t_stop = getTimeStamp();
-
-         printf("alias: %f (ns) 2 n-%d\n", 1e9*getElapsedTime( t_start, t_stop )/(n-offset), j);
-      }
+      printf("alias: %10.5f (ns) offset %2d\n", 1e9*runtime/(n-offset), offset);
+   }
 }
 
 void histogram (const double *x, const int n, int *count, const int nbins)
@@ -450,7 +445,7 @@ void run_tests (const int n)
    invSqrtSimd(n);
 #endif
 
-   alias(n);
+   test_alias(n);
 
    int bins[] = {1000, 100, 10, 8, 4, 2, 1};
 

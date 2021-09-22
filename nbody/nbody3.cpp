@@ -9,6 +9,7 @@
 #include <string>
 #include <limits>
 #include <cmath>
+#include <typeinfo>
 
 #include <timer.h>
 #include <aligned_allocator.h>
@@ -214,61 +215,58 @@ void accel_outer_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, V
 // Using default from available instruction set.
 #endif
 
-#include <vcl/vectorclass.h>
-#include <vcl/vectormath_exp.h>
-
-#if (MAX_VECTOR_SIZE == 128)
-# define VCL_MAX_DBL_WORDS 2
-# define VCL_MAX_FLT_WORDS 4
-#elif (MAX_VECTOR_SIZE == 256)
-# define VCL_MAX_DBL_WORDS 4
-# define VCL_MAX_FLT_WORDS 8
-#elif (MAX_VECTOR_SIZE == 512)
-# define VCL_MAX_DBL_WORDS 8
-# define VCL_MAX_FLT_WORDS 16
-#else
-# error 'Unknown MAX_VECTOR_SIZE in VCL'
-#endif
-
-#define __STRINGIFY(__x) #__x
-#define STRINGIFY(__x) __STRINGIFY(__x)
-#define __STRCAT(a,b) a ## b
-#define STRCAT(a,b) __STRCAT(a,b)
-
-#define VCL_SIMD_DBL STRCAT(Vec, STRCAT( VCL_MAX_DBL_WORDS, d ))
-#define VCL_SIMD_FLT STRCAT(Vec, STRCAT( VCL_MAX_FLT_WORDS, f ))
-
-//#pragma message "VCL INSTRSET = " STRINGIFY( INSTRSET )
-//#pragma message "VCL MAX_VECTOR_SIZE = " STRINGIFY( MAX_VECTOR_SIZE )
-//#pragma message "VCL DBL = " STRINGIFY( VCL_SIMD_DBL )
-//#pragma message "VCL FLT = " STRINGIFY( VCL_SIMD_FLT )
-
-template <typename ValueType>
-struct set_simdType;
-
-template <>
-struct set_simdType<double>
-{
-   typedef double value_type;
-   typedef VCL_SIMD_DBL simdType;
-};
-template <>
-struct set_simdType<float>
-{
-   typedef float value_type;
-   typedef VCL_SIMD_FLT simdType;
-};
-
-typedef typename set_simdType<double>::simdType VecDbl;
-typedef typename set_simdType<float >::simdType VecFlt;
-
-VecDbl rsqrt( const VecDbl& a) { return 1. / sqrt(a); }
+#include "vcl_helper.h"
 
 #define __ENABLE_VCL_RSQRT
+
+/*template <int VL>
+typename vcl_type<double, VL>::type rsqrt ( const typename vcl_type<double, VL>::type& v )
+{
+   typedef typename vcl_type<double, VL>::type T;
+   return T(1) / sqrt(v);
+}
+
+template <int VL>
+typename vcl_type<float, VL>::type rsqrt ( const typename vcl_type<float, VL>::type& v )
+{
+   typedef typename vcl_type<float, VL>::type T;
 #ifdef __ENABLE_VCL_RSQRT
-VecFlt rsqrt( const VecFlt& a) { return approx_rsqrt(a); }
+   return approx_rsqrt(v);
 #else
-VecFlt rsqrt( const VecFlt& a) { return VecFlt(1.f) / sqrt(a); }
+   return T(1.f) / sqrt(v);
+#endif
+}*/
+
+#if (MAX_VECTOR_SIZE >= 128)
+Vec2d  rsqrt (const Vec2d& v) { return 1.0 / sqrt(v); }
+Vec4f  rsqrt (const Vec4f& v) {
+#ifdef __ENABLE_VCL_RSQRT
+   return approx_rsqrt(v);
+#else
+   return float(1) / sqrt(v);
+#endif
+}
+#endif
+#if (MAX_VECTOR_SIZE >= 256)
+Vec4d  rsqrt (const Vec4d& v) { return 1.0 / sqrt(v); }
+
+Vec8f  rsqrt (const Vec8f& v) {
+#ifdef __ENABLE_VCL_RSQRT
+   return approx_rsqrt(v);
+#else
+   return float(1) / sqrt(v);
+#endif
+}
+#endif
+#if (MAX_VECTOR_SIZE >= 512)
+Vec8d  rsqrt (const Vec8d& v) { return 1.0 / sqrt(v); }
+Vec16f  rsqrt (const Vec16f& v) {
+#ifdef __ENABLE_VCL_RSQRT
+   return approx_rsqrt(v);
+#else
+   return float(1) / sqrt(v);
+#endif
+}
 #endif
 
 // Explicit SIMD (vector) processing: Compute several interactions at once with SIMD operations.
@@ -276,8 +274,8 @@ VecFlt rsqrt( const VecFlt& a) { return VecFlt(1.f) / sqrt(a); }
 template <typename ValueType>
 void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
 {
-   typedef typename set_simdType<ValueType>::simdType simdType;
-   const int simd_length = sizeof(simdType) / sizeof(ValueType);
+   const int VL = SIMD_Vector_Length< ValueType >();
+   typedef typename vcl_type< ValueType, VL >::type simdType;
 
    // Must be aligned to wordsize (preferrably cacheline) boundary.
    if ( isAligned(  pos, sizeof(simdType )) == false ||
@@ -303,13 +301,13 @@ void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
    const simdType vG( G );
 
    // Outer loop vectorization.
-   for (int i = 0; i < n; i += simd_length)
+   for (int i = 0; i < n; i += VL)
    {
       simdType ax(0), ay(0), az(0);
 
       simdType xi, yi, zi;
 
-      if (i + simd_length < n)
+      if (i + VL < n)
       {
          xi.load_a( &pos_array(i,0) );
          yi.load_a( &pos_array(i,1) );
@@ -339,7 +337,7 @@ void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
          const simdType r2 = rx*rx + ry*ry + rz*rz + vTINY2;
 
          simdType m_invR3;
-         if ( sizeof(ValueType) == sizeof(float) )
+         if ( 1 )
          {
             const simdType invR = rsqrt( r2 );
             m_invR3 = mj * (invR * invR * invR);
@@ -356,7 +354,7 @@ void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       ay *= vG;
       az *= vG;
 
-      if (i + simd_length < n)
+      if (i + VL < n)
       {
          ax.store_a( &acc_array(i,0) );
          ay.store_a( &acc_array(i,1) );
@@ -371,6 +369,7 @@ void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
    }
 }
 
+#if 0
 // Shuffle the lanes to the right.
 Vec2d  rotate_right( const Vec2d  x ) { return permute2d<1,0>(x); }
 Vec4f  rotate_right( const Vec4f  x ) { return permute4f<3,0,1,2>(x); }
@@ -509,6 +508,8 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
 }
 #endif
 
+#endif
+
 template <typename ValueType>
 void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, ValueType h)
 {
@@ -581,7 +582,7 @@ void help(const char* prg)
    fprintf(stderr,"\t\tOuter SIMD         (4) : Use OpenMP v4+ directive to vectorize outer i loop.\n");
 #ifdef __ENABLE_VCL_SIMD
    fprintf(stderr,"\t\tVCL SIMD           (5) : Use the VCL C++ library to explicitly vectorize.\n");
-   fprintf(stderr,"\t\tVCL SIMD-ROTATE    (6) : Use the VCL C++ library to explicitly vectorize and rotate the inner loop.\n");
+//   fprintf(stderr,"\t\tVCL SIMD-ROTATE    (6) : Use the VCL C++ library to explicitly vectorize and rotate the inner loop.\n");
 #endif
 }
 
@@ -592,7 +593,7 @@ enum { ACCEL_NAIVE = 0,
        ACCEL_OUTER_SIMD
 #ifdef __ENABLE_VCL_SIMD
       ,ACCEL_VCL_SIMD
-      ,ACCEL_VCL_SIMD_ROTATE
+//      ,ACCEL_VCL_SIMD_ROTATE
 #endif
 };
 
@@ -607,9 +608,12 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
    fprintf(stderr,"Alignment      = %lu bytes\n", Alignment());
    fprintf(stderr,"ValueType      = %s\n", (sizeof(ValueType)==sizeof(double)) ? "double" : "float");
 #ifdef __ENABLE_VCL_SIMD
-   fprintf(stderr,"simdType       = %s\n", (sizeof(ValueType)==sizeof(double)) ? STRINGIFY(VCL_SIMD_DBL) : STRINGIFY(VCL_SIMD_FLT));
+   const int VL = SIMD_Vector_Length< ValueType >();
+   typedef vcl_type< ValueType, VL > simdType;
+   fprintf(stderr,"SIMD Length    = %d (%d)\n", VL, MAX_VECTOR_SIZE);
+   fprintf(stderr,"SIMD Type      = %s\n", typeid(simdType).name());
 # ifdef __ENABLE_VCL_RSQRT
-   fprintf(stderr,"simdType rsqrt = enabled\n");
+   fprintf(stderr,"SIMD rsqrt     = enabled\n");
 # endif
 #endif
 #ifdef Enable_ArrayOfStructures
@@ -692,8 +696,8 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
 #ifdef __ENABLE_VCL_SIMD
       else if (Method == ACCEL_VCL_SIMD)
          accel_vcl_simd( pos, vel, mass, acc, n );
-      else if (Method == ACCEL_VCL_SIMD_ROTATE)
-         accel_vcl_simd_rotate( pos, vel, mass, acc, n );
+      //else if (Method == ACCEL_VCL_SIMD_ROTATE)
+      //   accel_vcl_simd_rotate( pos, vel, mass, acc, n );
 #endif
 
       TimerType t1 = getTimeStamp();
@@ -771,8 +775,8 @@ int run_tests_1( const int n, const int num_steps, const ValueType dt, const int
 #ifdef __ENABLE_VCL_SIMD
    else if (method == ACCEL_VCL_SIMD)
       return run_tests<ValueType,ACCEL_VCL_SIMD>( n, num_steps, dt );
-   else if (method == ACCEL_VCL_SIMD_ROTATE)
-      return run_tests<ValueType,ACCEL_VCL_SIMD_ROTATE>( n, num_steps, dt );
+   //else if (method == ACCEL_VCL_SIMD_ROTATE)
+   //   return run_tests<ValueType,ACCEL_VCL_SIMD_ROTATE>( n, num_steps, dt );
 #endif
    else
       return 1;
@@ -815,16 +819,6 @@ int main (int argc, char* argv[])
       }
       else if (strcmp(argv[i],"--nsteps") == 0 || strcmp(argv[i],"-s") == 0)
       {
-         check_index(i+1,"--nsteps|-s");
-         i++;
-         if (not(isdigit(*argv[i])))
-            { fprintf(stderr,"Invalid value for option \"--nsteps\" %s\n", argv[i]); help(argv[0]); return 1; }
-         num_steps = atoi( argv[i] );
-      }
-      else if (strcmp(argv[i],"--stepsize") == 0 || strcmp(argv[i],"-t") == 0)
-      {
-         check_index(i+1,"--stepsize|-t");
-         i++;
          if (not(isdigit(*argv[i])))
             { fprintf(stderr,"Invalid value for option \"--stepsize\" %s\n", argv[i]); help(argv[0]); return 1; }
          dt = atof( argv[i] );
@@ -860,7 +854,7 @@ int main (int argc, char* argv[])
    methods.push_back( "accel_outer_simd" );
 #ifdef __ENABLE_VCL_SIMD
    methods.push_back( "accel_vcl_simd" );
-   methods.push_back( "accel_vcl_simd_rotate" );
+   //methods.push_back( "accel_vcl_simd_rotate" );
 #endif
 
    if (method < 0 or method >= methods.size())

@@ -5,6 +5,7 @@ CXX      ?= g++
 CXXFLAGS  = -O3 -I. -std=c++11 -I$(COMMON) $(DBG)
 
 #CXXFLAGS += -no-vec
+CXXFLAGS += -Wfatal-errors
 
 ifeq ($(CXX),icpc)
   CXXFLAGS += -xHost

@@ -123,69 +123,10 @@ void invSqrt (const int n)
 // Using default from available instruction set.
 #endif
 
-#include <vcl/vectorclass.h>
-#include <vcl/vectormath_exp.h>
+#include "vcl_helper.h"
+const int VL = SIMD_Vector_Length<double>();
 
-template <typename T, int width> struct vcl_type;
-template <typename V> struct vcl_mask_type;
-
-#if (MAX_VECTOR_SIZE == 128)
-
-# define VCL_DBL_TYPE Vec2d
-# define VCL_BOOL_TYPE Vec2db
-# define VCL_LONG_TYPE Vec2q
-
-#elif (MAX_VECTOR_SIZE == 256)
-
-# define VCL_DBL_TYPE Vec4d
-# define VCL_BOOL_TYPE Vec4db
-# define VCL_LONG_TYPE Vec4q
-
-constexpr int SimdWidth = 4;
-template <> struct vcl_type<double, 4> { using type = Vec4d; };
-template <> struct vcl_type<   int, 4> { using type = Vec4i; };
-template <> struct vcl_type<   int, 8> { using type = Vec8i; };
-template <> struct vcl_type< float, 8> { using type = Vec8f; };
-template <> struct vcl_type<  long, 4> { using type = Vec4q; };
-
-template <> struct vcl_mask_type< Vec4d > { using type = Vec4db; };
-template <> struct vcl_mask_type< Vec4q > { using type = Vec4qb; };
-
-#elif (MAX_VECTOR_SIZE == 512)
-
-# define VCL_DBL_TYPE Vec8d
-# define VCL_BOOL_TYPE Vec8db
-# define VCL_LONG_TYPE Vec8q
-
-constexpr int SimdWidth = 8;
-template <> struct vcl_type<double,  8> { using type = Vec8d; };
-template <> struct vcl_type<   int,  8> { using type = Vec8i; };
-template <> struct vcl_type<   int, 16> { using type = Vec16i; };
-template <> struct vcl_type< float, 16> { using type = Vec16f; };
-template <> struct vcl_type<  long,  8> { using type = Vec8q; };
-
-template <> struct vcl_mask_type< Vec8d > { using type = Vec8db; };
-template <> struct vcl_mask_type< Vec8q > { using type = Vec8qb; };
-
-#else
-# error 'Unknown MAX_VECTOR_SIZE in VCL'
-#endif
-
-
-#include <immintrin.h>
-#include <vcl/vectorclass.h>
-#include <vcl/vectormath_exp.h>
-
-template <typename SimdMask>
-bool any( const SimdMask &x ) { return horizontal_or(x); }
-
-template <typename SimdMask>
-bool all( const SimdMask &x ) { return horizontal_and(x); }
-
-template <typename SimdMask, typename SimdType>
-SimdType where( const SimdMask &mask, const SimdType &a, const SimdType &b) {
-   return select( mask, a, b );
-}
+//#include <immintrin.h>
 
 void invSqrtSimd (const int n)
 {
@@ -200,11 +141,6 @@ void invSqrtSimd (const int n)
       count[i] = 0;
    }
 
-//   typedef VCL_DBL_TYPE simd_type;
-//   typedef VCL_LONG_TYPE int_simd_type;
-//   typedef VCL_BOOL_TYPE mask_type;
-
-   const int VL = SimdWidth;
    using vector_type  = vcl_type<double, VL>::type;
    using counter_type = vcl_type<long, VL>::type;  // This must match the vector type.
    using mask_type    = vcl_mask_type< vector_type >::type;
@@ -423,7 +359,10 @@ void histogram (const T *x, const int n, int *count, const int nbins)
    const T dx = T(1) / nbins;
    const T one_over_dx = T(1) / dx;
 
-   #pragma omp simd aligned( x, count : 64 )
+   //__assume_aligned(x, 64);
+   //__assume_aligned(count, 64);
+
+   //#pragma omp simd aligned( x, count : 64 )
    for (int i = 0; i < n; ++i)
    {
      // int bid = floor( x[i] / dx );
@@ -444,8 +383,8 @@ void histogram (const int n, const int nbins)
       count[i] = 0;
 
    for (int i = 0; i < n; ++i) {
-      //ValueType r = ValueType( rand() ) / RAND_MAX; // [0,1)
-      ValueType r = i / ValueType(n);
+      ValueType r = ValueType( rand() ) / RAND_MAX; // [0,1)
+      //ValueType r = i / ValueType(n);
       x[i] = r;
    }
 
@@ -476,6 +415,9 @@ void histogram (const int n, const int nbins)
    }
 
    printf("histogram: %f (ns) nbins= %d\n", 1e9*runtime/(n*jloops), nbins);
+
+   free(x);
+   free(count);
 }
 
 template <typename ValueType>
@@ -489,11 +431,13 @@ void run_tests (const int n)
 
    test_alias(n);
 
-   int bins[] = {10000, 2000, 1000, 200, 100, 20, 10, 8, 4, 2, 1};
+   int bins[] = {n, 10000, 2000, 1000, 200, 100, 20, 10, 8, 4, 2, 1};
 
+   printf("float\n");
    for (int i = 0; i < sizeof(bins)/sizeof(bins[0]); i++) {
       histogram<float>(n, bins[i]);
    }
+   printf("double\n");
    for (int i = 0; i < sizeof(bins)/sizeof(bins[0]); i++) {
       histogram<double>(n, bins[i]);
    }

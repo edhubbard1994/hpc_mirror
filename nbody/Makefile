@@ -64,6 +64,8 @@ all: $(EXEC)
 include $(COMMON)/Makefile.common
 LDFLAGS	  = $(COMMON_LIBS)
 
+-include *.d
+
 nbody3: nbody3.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o nbody3 $^ $(LDFLAGS)
 

@@ -1369,6 +1369,13 @@ static inline Vec8d abs(Vec8d const & a) {
 static inline Vec8d sqrt(Vec8d const & a) {
     return _mm512_sqrt_pd(a);
 }
+static inline Vec8d approx_rsqrt(Vec8d const & a) {
+#ifdef __AVX512ER__
+    return _mm512_rsqrt28_pd(a);
+#else
+    return Vec8d(1) / sqrt(a);
+#endif
+}
 
 // function square: a * a
 static inline Vec8d square(Vec8d const & a) {

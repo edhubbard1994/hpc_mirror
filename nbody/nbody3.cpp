@@ -29,7 +29,8 @@
 #  define _index(i,j) (NDIM*(i) + (j))
 #else
    /* Structure-of-arrays (like) format. */
-#  define _index(i,j) ((i) + (j)*n)
+//#  define _index(i,j) ((i) + (j)*n)
+#  define _index(i,j) ((i) + (j)*n_pad)
 #endif
 
 #define acc_array(i,j) acc[ _index((i),(j)) ]
@@ -48,7 +49,7 @@ template <typename ValueType>
 ValueType frand(void) { return ValueType( rand() ) / RAND_MAX; }
 
 template <typename ValueType>
-void accel_naive (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n)
+void accel_naive (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, const int n_pad)
 {
    for (int i = 0; i < n; ++i)
       for (int k = 0; k < NDIM; ++k)
@@ -72,7 +73,7 @@ void accel_naive (ValueType pos[], ValueType vel[], ValueType mass[], ValueType 
 
 // Operator strength reduction: replace equivalent math with cheaper operations.
 template <typename ValueType>
-void accel_strength (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n)
+void accel_strength (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, const int n_pad)
 {
    for (int i = 0; i < n; ++i)
       for (int k = 0; k < NDIM; ++k)
@@ -105,7 +106,7 @@ void accel_strength (ValueType pos[], ValueType vel[], ValueType mass[], ValueTy
 // it often helps with cache efficiency. This can be especially helpfule
 // by avoiding repeated writes which are several times slower than reads.
 template <typename ValueType>
-void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
+void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n, const int n_pad)
 {
    for (int i = 0; i < n; ++i)
    {
@@ -155,7 +156,7 @@ void accel_ij_interaction (const ValueType xi, const ValueType yi, const ValueTy
 
 // SIMD (vector) processing: Compute several inner interactions at once with SIMD operations.
 template <typename ValueType>
-void accel_inner_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
+void accel_inner_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n, const int n_pad)
 {
    // Outer loop vectorization.
    for (int i = 0; i < n; ++i)
@@ -180,7 +181,7 @@ void accel_inner_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, V
 
 // SIMD (vector) processing: Compute several outer interactions at once with SIMD operations.
 template <typename ValueType>
-void accel_outer_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
+void accel_outer_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n, const int n_pad)
 {
    // Outer loop vectorization.
    #pragma omp simd aligned(pos, mass : __ALIGNMENT )
@@ -217,7 +218,7 @@ void accel_outer_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, V
 
 #include "vcl_helper.h"
 
-#define __ENABLE_VCL_RSQRT
+//#define __ENABLE_VCL_RSQRT
 
 /*template <int VL>
 typename vcl_type<double, VL>::type rsqrt ( const typename vcl_type<double, VL>::type& v )
@@ -259,7 +260,14 @@ Vec8f  rsqrt (const Vec8f& v) {
 }
 #endif
 #if (MAX_VECTOR_SIZE >= 512)
-Vec8d  rsqrt (const Vec8d& v) { return 1.0 / sqrt(v); }
+//Vec8d  rsqrt (const Vec8d& v) { return 1.0 / sqrt(v); }
+Vec8d  rsqrt (const Vec8d& v) {
+#ifdef __ENABLE_VCL_RSQRT
+   return approx_rsqrt(v);
+#else
+   return 1.0 / sqrt(v);
+#endif
+}
 Vec16f  rsqrt (const Vec16f& v) {
 #ifdef __ENABLE_VCL_RSQRT
    return approx_rsqrt(v);
@@ -272,19 +280,20 @@ Vec16f  rsqrt (const Vec16f& v) {
 // Explicit SIMD (vector) processing: Compute several interactions at once with SIMD operations.
 // Using the outer (target) particles into a SIMD word.
 template <typename ValueType>
-void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
+void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n, const int n_pad)
 {
    const int VL = SIMD_Vector_Length< ValueType >();
    typedef typename vcl_type< ValueType, VL >::type simdType;
 
    // Must be aligned to wordsize (preferrably cacheline) boundary.
-   if ( isAligned(  pos, sizeof(simdType )) == false ||
-        isAligned(  vel, sizeof(simdType )) == false ||
-        isAligned(  acc, sizeof(simdType )) == false ||
-        isAligned( mass, sizeof(simdType )) == false ||
-        isAligned( pos + n, sizeof(simdType)) == false )
+   if ( isAligned(     pos, sizeof(simdType)) == false ||
+        isAligned(     vel, sizeof(simdType)) == false ||
+        isAligned(     acc, sizeof(simdType)) == false ||
+        isAligned(    mass, sizeof(simdType)) == false ||
+        isAligned( &pos_array(0,1), sizeof(simdType)) == false ||
+        isAligned( &pos_array(0,2), sizeof(simdType)) == false )
    {
-      fprintf(stderr,"Data is not aligned to %u-byte boundary: %p %p %p %p %d\n", pos, vel, acc, mass, sizeof(simdType)*8, n);
+      fprintf(stderr,"Data is not aligned to %u-byte boundary: %p %p %p %p %d %d\n", sizeof(simdType), pos, vel, acc, mass, n, n_pad);
       exit(1);
    }
 
@@ -511,7 +520,7 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
 #endif
 
 template <typename ValueType>
-void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, ValueType h)
+void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, ValueType h, const int n_pad)
 {
    for (int i = 0; i < n; ++i)
       for (int k = 0; k < NDIM; ++k)
@@ -522,7 +531,7 @@ void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
 }
 
 template <typename ValueType>
-void output (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, int flnum)
+void output (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, int flnum, const int n_pad)
 {
    char flname[20];
    sprintf (flname, "pos_%d.out", flnum);
@@ -547,7 +556,7 @@ void output (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
 }
 
 template <typename ValueType>
-void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n)
+void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, const int n_pad)
 {
    ValueType minv = 1e10, maxv = 0, ave = 0;
    for (int i = 0; i < n; ++i)
@@ -629,9 +638,19 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
    ValueType *acc = NULL;
    ValueType *mass = NULL;
 
-   Allocate(pos, n*NDIM);
-   Allocate(vel, n*NDIM);
-   Allocate(acc, n*NDIM);
+   int n_pad = n;
+#ifndef Enable_ArrayOfStructures
+   const int cacheline_size = ( Alignment() / sizeof(ValueType) );
+   if (n % cacheline_size != 0) {
+      n_pad = n + (cacheline_size - n % cacheline_size);
+   }
+#endif
+   //printf("%d %d\n", n, n_pad);
+   fprintf(stderr,"Padding        = %d %d\n", (n_pad-n), n_pad );
+
+   Allocate(pos, n_pad*NDIM);
+   Allocate(vel, n_pad*NDIM);
+   Allocate(acc, n_pad*NDIM);
    Allocate(mass, n);
 
    if (1 && n == 2)
@@ -684,32 +703,32 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
       TimerType t0 = getTimeStamp();
 
       if (Method == ACCEL_NAIVE)
-         accel_naive( pos, vel, mass, acc, n );
+         accel_naive( pos, vel, mass, acc, n, n_pad );
       else if (Method == ACCEL_STRENGTH)
-         accel_strength( pos, vel, mass, acc, n );
+         accel_strength( pos, vel, mass, acc, n, n_pad );
       else if (Method == ACCEL_REGISTER)
-         accel_register( pos, vel, mass, acc, n );
+         accel_register( pos, vel, mass, acc, n, n_pad );
       else if (Method == ACCEL_INNER_SIMD)
-         accel_inner_simd( pos, vel, mass, acc, n );
+         accel_inner_simd( pos, vel, mass, acc, n, n_pad );
       else if (Method == ACCEL_OUTER_SIMD)
-         accel_outer_simd( pos, vel, mass, acc, n );
+         accel_outer_simd( pos, vel, mass, acc, n, n_pad );
 #ifdef __ENABLE_VCL_SIMD
       else if (Method == ACCEL_VCL_SIMD)
-         accel_vcl_simd( pos, vel, mass, acc, n );
+         accel_vcl_simd( pos, vel, mass, acc, n, n_pad );
       //else if (Method == ACCEL_VCL_SIMD_ROTATE)
-      //   accel_vcl_simd_rotate( pos, vel, mass, acc, n );
+      //   accel_vcl_simd_rotate( pos, vel, mass, acc, n, n_pad );
 #endif
 
       TimerType t1 = getTimeStamp();
 
       /* 2. Advance the position and velocities. */
-      update( pos, vel, mass, acc, n, dt );
+      update( pos, vel, mass, acc, n, dt, n_pad );
 
       TimerType t2 = getTimeStamp();
 
       /* 3. Find the faster moving object. */
       if (step % 10 == 0)
-         search( pos, vel, mass, acc, n );
+         search( pos, vel, mass, acc, n, n_pad );
 
       TimerType t3 = getTimeStamp();
 

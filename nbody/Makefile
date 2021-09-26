@@ -1,6 +1,6 @@
 COMMON	= ../common
 
-DBG      ?=
+DBG      ?= -g
 CXX      ?= g++
 CXXFLAGS  = -O3 -I. -std=c++11 -I$(COMMON) $(DBG)
 

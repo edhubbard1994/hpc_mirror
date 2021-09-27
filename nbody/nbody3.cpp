@@ -218,25 +218,7 @@ void accel_outer_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, V
 
 #include "vcl_helper.h"
 
-//#define __ENABLE_VCL_RSQRT
-
-/*template <int VL>
-typename vcl_type<double, VL>::type rsqrt ( const typename vcl_type<double, VL>::type& v )
-{
-   typedef typename vcl_type<double, VL>::type T;
-   return T(1) / sqrt(v);
-}
-
-template <int VL>
-typename vcl_type<float, VL>::type rsqrt ( const typename vcl_type<float, VL>::type& v )
-{
-   typedef typename vcl_type<float, VL>::type T;
-#ifdef __ENABLE_VCL_RSQRT
-   return approx_rsqrt(v);
-#else
-   return T(1.f) / sqrt(v);
-#endif
-}*/
+#define __ENABLE_VCL_RSQRT
 
 #if (MAX_VECTOR_SIZE >= 128)
 Vec2d  rsqrt (const Vec2d& v) { return 1.0 / sqrt(v); }
@@ -260,7 +242,6 @@ Vec8f  rsqrt (const Vec8f& v) {
 }
 #endif
 #if (MAX_VECTOR_SIZE >= 512)
-//Vec8d  rsqrt (const Vec8d& v) { return 1.0 / sqrt(v); }
 Vec8d  rsqrt (const Vec8d& v) {
 #ifdef __ENABLE_VCL_RSQRT
    return approx_rsqrt(v);
@@ -378,7 +359,7 @@ void accel_vcl_simd (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
    }
 }
 
-#if 0
+#if MAX_VECTOR_SIZE >= 128
 // Shuffle the lanes to the right.
 Vec2d  rotate_right( const Vec2d  x ) { return permute2d<1,0>(x); }
 Vec4f  rotate_right( const Vec4f  x ) { return permute4f<3,0,1,2>(x); }
@@ -395,18 +376,20 @@ Vec16f rotate_right( const Vec16f x ) { return permute16f<15,0,1,2,3,4,5,6,7,8,9
 // Load the outer (target) particles into a SIMD word and do the same for the inner loop. Careful!
 // still need to interact with all lanes of the inner loop word.
 template <typename ValueType>
-void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
+void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n, const int n_pad)
 {
-   typedef typename set_simdType<ValueType>::simdType simdType;
-   const int simd_length = sizeof(simdType) / sizeof(ValueType);
+   const int VL = SIMD_Vector_Length< ValueType >();
+   typedef typename vcl_type< ValueType, VL >::type simdType;
 
    // Must be aligned to wordsize (preferrably cacheline) boundary.
-   if ( isAligned(  pos, sizeof(simdType )) == false ||
-        isAligned(  vel, sizeof(simdType )) == false ||
-        isAligned(  acc, sizeof(simdType )) == false ||
-        isAligned( mass, sizeof(simdType )) == false )
+   if ( isAligned(     pos, sizeof(simdType)) == false ||
+        isAligned(     vel, sizeof(simdType)) == false ||
+        isAligned(     acc, sizeof(simdType)) == false ||
+        isAligned(    mass, sizeof(simdType)) == false ||
+        isAligned( &pos_array(0,1), sizeof(simdType)) == false ||
+        isAligned( &pos_array(0,2), sizeof(simdType)) == false )
    {
-      fprintf(stderr,"Data is not aligned to %u-byte boundary: %p %p %p %p\n", pos, vel, acc, mass, sizeof(simdType)*8);
+      fprintf(stderr,"Data is not aligned to %u-byte boundary: %p %p %p %p %d %d\n", sizeof(simdType), pos, vel, acc, mass, n, n_pad);
       exit(1);
    }
 
@@ -423,13 +406,13 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
    const simdType vG( G );
 
    // Outer loop vectorization.
-   for (int i = 0; i < n; i += simd_length)
+   for (int i = 0; i < n; i += VL)
    {
       simdType ax(0), ay(0), az(0);
 
       simdType xi, yi, zi;
 
-      if (i + simd_length < n)
+      if (i + VL < n)
       {
          xi.load_a( &pos_array(i,0) );
          yi.load_a( &pos_array(i,1) );
@@ -443,11 +426,11 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
          zi.load_partial( n-i, &pos_array(i,2) );
       }
 
-      for (int j = 0; j < n; j += simd_length)
+      for (int j = 0; j < n; j += VL)
       {
          simdType xj, yj, zj, mj;
 
-         if (j + simd_length < n)
+         if (j + VL < n)
          {
             xj.load_a( &pos_array(j,0) );
             yj.load_a( &pos_array(j,1) );
@@ -464,7 +447,7 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
          }
 
          // Now loop over the lanes.
-         for (int lane = 0; lane < simd_length; lane++)
+         for (int lane = 0; lane < VL; lane++)
          {
             // Position vector from i to j and the distance^3.
             const simdType rx = xj - xi;
@@ -474,7 +457,7 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
             const simdType r2 = rx*rx + ry*ry + rz*rz + vTINY2;
 
             simdType m_invR3;
-            if ( sizeof(ValueType) == sizeof(float) )
+            if ( 1 )
             {
                const simdType invR = rsqrt( r2 );
                m_invR3 = mj * (invR * invR * invR);
@@ -487,7 +470,7 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
             az += (rz * m_invR3);
 
             // Now rotate the data in the lanes.
-            if (lane < simd_length-1)
+            if (lane < VL-1)
             {
                xj = rotate_right( xj );
                yj = rotate_right( yj );
@@ -501,7 +484,7 @@ void accel_vcl_simd_rotate (ValueType * __RESTRICT pos, ValueType * __RESTRICT v
       ay *= vG;
       az *= vG;
 
-      if (i + simd_length < n)
+      if (i + VL < n)
       {
          ax.store_a( &acc_array(i,0) );
          ay.store_a( &acc_array(i,1) );
@@ -591,7 +574,7 @@ void help(const char* prg)
    fprintf(stderr,"\t\tOuter SIMD         (4) : Use OpenMP v4+ directive to vectorize outer i loop.\n");
 #ifdef __ENABLE_VCL_SIMD
    fprintf(stderr,"\t\tVCL SIMD           (5) : Use the VCL C++ library to explicitly vectorize.\n");
-//   fprintf(stderr,"\t\tVCL SIMD-ROTATE    (6) : Use the VCL C++ library to explicitly vectorize and rotate the inner loop.\n");
+   fprintf(stderr,"\t\tVCL SIMD-ROTATE    (6) : Use the VCL C++ library to explicitly vectorize and rotate the inner loop.\n");
 #endif
 }
 
@@ -602,7 +585,7 @@ enum { ACCEL_NAIVE = 0,
        ACCEL_OUTER_SIMD
 #ifdef __ENABLE_VCL_SIMD
       ,ACCEL_VCL_SIMD
-//      ,ACCEL_VCL_SIMD_ROTATE
+      ,ACCEL_VCL_SIMD_ROTATE
 #endif
 };
 
@@ -715,8 +698,8 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
 #ifdef __ENABLE_VCL_SIMD
       else if (Method == ACCEL_VCL_SIMD)
          accel_vcl_simd( pos, vel, mass, acc, n, n_pad );
-      //else if (Method == ACCEL_VCL_SIMD_ROTATE)
-      //   accel_vcl_simd_rotate( pos, vel, mass, acc, n, n_pad );
+      else if (Method == ACCEL_VCL_SIMD_ROTATE)
+         accel_vcl_simd_rotate( pos, vel, mass, acc, n, n_pad );
 #endif
 
       TimerType t1 = getTimeStamp();
@@ -794,8 +777,8 @@ int run_tests_1( const int n, const int num_steps, const ValueType dt, const int
 #ifdef __ENABLE_VCL_SIMD
    else if (method == ACCEL_VCL_SIMD)
       return run_tests<ValueType,ACCEL_VCL_SIMD>( n, num_steps, dt );
-   //else if (method == ACCEL_VCL_SIMD_ROTATE)
-   //   return run_tests<ValueType,ACCEL_VCL_SIMD_ROTATE>( n, num_steps, dt );
+   else if (method == ACCEL_VCL_SIMD_ROTATE)
+      return run_tests<ValueType,ACCEL_VCL_SIMD_ROTATE>( n, num_steps, dt );
 #endif
    else
       return 1;
@@ -873,7 +856,7 @@ int main (int argc, char* argv[])
    methods.push_back( "accel_outer_simd" );
 #ifdef __ENABLE_VCL_SIMD
    methods.push_back( "accel_vcl_simd" );
-   //methods.push_back( "accel_vcl_simd_rotate" );
+   methods.push_back( "accel_vcl_simd_rotate" );
 #endif
 
    if (method < 0 or method >= methods.size())

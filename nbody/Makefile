@@ -70,7 +70,7 @@ LDFLAGS	  = $(COMMON_LIBS)
 nbody3: nbody3.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o nbody3 $^ $(LDFLAGS)
 
-simd: simd.o $(COMMON_OBJS)
+simd: simd.o alias.o $(COMMON_OBJS)
 	$(CXX) $(CXXFLAGS) -o simd $^ $(LDFLAGS)
 
 clean: clean_common

@@ -269,12 +269,8 @@ void invSqrtSimd (const int n)
 static double beta = 1.0, alpha = 0.5;
 static int    flip = 0;
 
-void alias_kernel (const double *__RESTRICT x, double *__RESTRICT y, const int n)
-{
-   for (int i = 0; i < n; ++i)
-      y[i] = beta * y[i] + alpha * x[i];
-      //y[i] = sqrt( x[i] );
-}
+//external
+void alias_kernel (const double alpha, const double beta, const double *__RESTRICT x, double *__RESTRICT y, const int n);
 
 void test_alias (const int n)
 {
@@ -311,7 +307,7 @@ void test_alias (const int n)
          for (int t = 0; t < ntests; ++t)
          {
             double *p = ( flip ) ? y : x;
-            alias_kernel ( p+offset, y, n-offset );
+            alias_kernel ( alpha, beta, p+offset, y, n-offset );
 
             dummy_function( n, x, y );
          }

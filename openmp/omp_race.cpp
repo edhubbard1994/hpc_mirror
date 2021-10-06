@@ -187,13 +187,13 @@ int main (int argc, char* argv[])
       double shared_double = 0;
       #pragma omp parallel shared( shared_int, shared_double )
       {
-         if (omp_get_thread_num() < 100)
+         auto idx = omp_get_thread_num();
+         if (idx % 2 == 0)
             shared_int++;
+         else
+            shared_int--;
 
-         for (int i = 0; i < n; ++i)
-            shared_double += sqrt(double(i)/n);
-
-         shared_int++;
+         shared_double += sqrt( double(idx) / n );
       }
 
       printf("shared_int= %d %e\n", shared_int, shared_double);

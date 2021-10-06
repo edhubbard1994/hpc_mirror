@@ -963,8 +963,12 @@ void run_test (const int n, int numTests, const algorithmTagType algorithmTag, c
                mid = ParallelPartition( b, n, piv, comp() );
 #  endif
 #else
+#ifdef ENABLE_SIMD
+#warning "Calling SIMD Parallel Partitioner"
+               mid = myPartitionSimd( b, b + n, piv, comp() );
+#else
                mid = myPartition( b, b + n, piv, comp() );
-               //mid = myPartitionSimd( b, b + n, piv, comp() );
+#endif
 #endif
 
                if ( n < 100 ) {

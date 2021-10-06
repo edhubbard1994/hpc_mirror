@@ -27,6 +27,12 @@ CXXFLAGS += -D__RESTRICT=restrict -restrict
 endif
 endif
 
+ifneq ($(simd),)
+ifneq ($(simd),0)
+CXXFLAGS += -DENABLE_SIMD
+endif
+endif
+
 ifneq ($(align),)
 ifneq ($(align),0)
 CXXFLAGS += -D__ALIGNMENT=$(align)

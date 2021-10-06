@@ -9,15 +9,30 @@ CXXFLAGS += -Wfatal-errors
 
 ifeq ($(CXX),icpc)
   CXXFLAGS += -xHost
-  CXXFLAGS += -D__RESTRICT=restrict -restrict
+# CXXFLAGS += -D__RESTRICT=restrict -restrict
 # CXXFLAGS += -xavx2
 # CXXFLAGS += -xMIC-AVX512
 # CXXFLAGS += -xCORE-AVX512
-  CXXFLAGS += -qopt-zmm-usage=high
+#  CXXFLAGS += -qopt-zmm-usage=high
+#  CXXFLAGS += -no-prec-sqrt
   CXXFLAGS += -qopt-report=5
   CXXFLAGS += -Wunknown-pragmas # Disable warning about OpenMP pragma no defined.
   CXXFLAGS += -qopenmp-simd
 # CXXFLAGS += -prec-sqrt -prec-div
+endif
+
+ifneq ($(restrict),)
+  do_restrict=0
+  ifeq ($(restrict),yes)
+    do_restrict=1
+  endif
+  ifneq ($(restrict),0)
+    do_restrict=1
+  endif
+
+  ifeq ($(do_restrict),1)
+    CXXFLAGS += -D__RESTRICT=restrict -restrict
+  endif
 endif
 
 ifeq ($(CXX),g++)

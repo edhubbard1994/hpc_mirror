@@ -270,7 +270,7 @@ static double beta = 1.0, alpha = 0.5;
 static int    flip = 0;
 
 //external
-void alias_kernel (const double alpha, const double beta, const double *__RESTRICT x, double *__RESTRICT y, const int n);
+void alias_kernel (const double alpha, const double beta, const double *__RESTRICT x, double *__RESTRICT y, double *__RESTRICT z, const int n);
 
 void test_alias (const int n)
 {
@@ -306,10 +306,10 @@ void test_alias (const int n)
 
          for (int t = 0; t < ntests; ++t)
          {
-            double *p = ( flip ) ? y : x;
-            alias_kernel ( alpha, beta, p+offset, y, n-offset );
+            double *z = y;
+            alias_kernel ( alpha, beta, x+offset, y, z, n-offset );
 
-            dummy_function( n, x, y );
+            dummy_function( n, x, y, z );
          }
 
          TimerType t_stop = getTimeStamp();
@@ -327,8 +327,10 @@ void test_alias (const int n)
          y_ref[i] = x[i];
 
       for (int t = 0; t < ntests; ++t)
-         for (int i = 0; i < n-offset; ++i)
-            y_ref[i] = beta * y_ref[i] + alpha * x[i+offset];
+         for (int i = 0; i < n-offset; ++i) {
+            double *z = y_ref;
+            z[i] = beta * y_ref[i] + alpha * x[i+offset];
+         }
 
       double err2 = 0, ref2 = 0, err0 = 0;
       for (int i = 0; i < n; ++i) {
@@ -358,7 +360,7 @@ void histogram (const T *x, const int n, int *count, const int nbins)
    //__assume_aligned(x, 64);
    //__assume_aligned(count, 64);
 
-   //#pragma omp simd aligned( x, count : 64 )
+   #pragma omp simd aligned( x, count : 64 )
    for (int i = 0; i < n; ++i)
    {
      // int bid = floor( x[i] / dx );

@@ -115,12 +115,21 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       const ValueType yi = pos_array(i,1);
       const ValueType zi = pos_array(i,2);
 
+      const ValueType *px = pos;
+      const ValueType *py = pos +   n_pad;
+      const ValueType *pz = pos + 2*n_pad;
+
+      //#pragma omp simd aligned( pos, mass: 64 )
+      //#pragma omp simd aligned( px, py, pz, mass: 64 )
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */
-         ValueType rx = pos_array(j,0) - xi;
-         ValueType ry = pos_array(j,1) - yi;
-         ValueType rz = pos_array(j,2) - zi;
+         //ValueType rx = pos_array(j,0) - xi;
+         //ValueType ry = pos_array(j,1) - yi;
+         //ValueType rz = pos_array(j,2) - zi;
+         ValueType rx = px[j] - xi;
+         ValueType ry = py[j] - yi;
+         ValueType rz = pz[j] - zi;
          ValueType dsq = rx*rx + ry*ry + rz*rz + TINY2;
          ValueType m_invR3 = mass[j] / (dsq * std::sqrt(dsq));
 

@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "omp_helper.h"
 #include "aligned_allocator.h"
+#include "dummy.h"
 
 double drand (void)
 {
@@ -48,7 +49,8 @@ ValueType calcPiInt_FS (const int n, const int numThreads)
    ValueType step = 1.0 / ValueType(n);
 
    typedef ValueType ThreadSumType[len];
-   ThreadSumType *threadSums = new ThreadSumType[numThreads];
+   //ThreadSumType *threadSums = new ThreadSumType[numThreads];
+   auto threadSums = Allocate< ThreadSumType >( numThreads );
 
    //for (int k = 0; k < numThreads; ++k)
    //   threadSums[k][0] = 0;
@@ -67,6 +69,8 @@ ValueType calcPiInt_FS (const int n, const int numThreads)
       {
          ValueType x = (i + 0.5) * step;
          threadSums[thread_id][0] += 1.0 / (1.0 + x*x);
+         //if (i % 128 == 0)
+         //   dummy_function( numThreads, threadSums );
       }
    }
 
@@ -78,7 +82,8 @@ ValueType calcPiInt_FS (const int n, const int numThreads)
    ValueType pi = sum * (4 * step);
    TimerType t1 = getTimeStamp();
 
-   delete [] threadSums;
+   //delete [] threadSums;
+   free( threadSums );
 
    printf("IntegrationFS: pi = %e %f(%%) %d %f (ms) %d %lu\n", pi, 100*fabs(M_PI-pi)/M_PI, n, 1000.*getElapsedTime(t0, t1), numThreads, sizeof(ThreadSumType));
 

@@ -19,3 +19,6 @@ Thumbs.db
 *.o
 *.d
 *.optrpt
+
+# Profiling result files
+*.advixeexpz

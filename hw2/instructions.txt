@@ -1,0 +1,42 @@
+For the 2nd assignment, you will (1) convert an existing serial C++ code into a parallel, multi-threaded code using OpenMP and (2) run a series of benchmarks on Stampede2 to measure the parallel speed-up and efficiency.
+
+1) Pull the latest updates to the HPC class repo from BitBucket to Stampede2. The serial code, based on the n-body code we discussed in class, is in the hw2/ directory.
+
+2) Verify that the serial code runs and that you can change the number of particles in the benchmark simulation. Start small with perhaps 100 particles (-n 100) and try doubling that a few times. The cost increase should be quadratic: that is, if you double the # of particles, the cost should increase by approximately four times. The last line of screen output gives the average time per step (there are 100 steps by default).
+Stampede2 has several GCC releases and the Intel C++ compiler. The Intel C++ compiler is usually the fastest (as you recall from HW1 and class discussions) so let’s go with icpc compiler. You can specify the compiler when building with the provided Makefile by setting the CXX environmental variable:
+
+prompt% export CXX=icpc
+prompt% make
+
+This will compile the nbody3 binary with the icpc compiler. If you don’t set CXX=icpc, it will use the default g++ GNU C++ compiler which will work but will be slower.
+
+Finally, experiment with running more steps. The default is 100 steps. Does the average time per step change if you double and quadruple it? Find the number of steps needed to produce consistent results.
+
+As a point of reference, I benchmarked the code using 1000 particles with 500 steps on a KNL CPU. Using the GNU compiler, the code took 43.9 ms per step on average but only 2.40 ms when using the Intel C++ compiler. See for yourself. Recall what we discuss about SIMD vectorization … it can make a huge difference on the KNL.
+
+Once you’re comfortable building and running the serial code, it’s time to make it run across multiple cores in parallel.
+
+3) To make the code run in parallel, you’ll need to add OpenMP parallel pragmas to several of the for-loops. These include the outer loops in accel_register(), update(), and search(). Also, determine the number of threads you’re using at run-time and have that printed once during each run. This will require using an OpenMP API function, not a pragma, which requires that you include the OpenMP library header omp.h.
+
+Examine the for-loops in those three routines and determine how best of parallelize them. Be careful about data dependencies and race conditions. You will need to change the Makefile to enable OpenMP. Add -fopenmp to the CXXFLAGS make variable to enable this feature. (CXXFLAGS is a standard name for C++ options using GNU make.)
+
+Note that you can add the OpenMP parallel statements in stages; you don’t have to code all of them at once. That is, you can make one loop at a time parallel and verify that the results are the same. The best way to verify is to look at the screen output. Every 10 steps, the min, max, and average particle velocity is printed. For the same # of particles and steps, those values shouldn’t change if you’ve modified the code properly. Once you have all of the code modifications completed, you’re ready to benchmark the parallel code.
+
+You can change the number of threads by adjusting the OMP_NUM_THREADS environment variable before you start the code. For example, use this to run with 8 threads
+
+export OMP_NUM_THREADS=8
+./nbody3 -n 1000 -s 200
+
+Try with 2, 4, 8, and 16 threads. Again, the results should not change and, hopefully, the time per step will decrease if parallel processing is helpful.
+
+4) It’s time to run a series of serial and parallel benchmarks. We’re going to run two major benchmarks, one of measure the strong scalability and another to measure the weak scalability.
+
+Run serial and parallel cases with 1,000, 2,000, 4,000, and 8,000 particles using 1, 2, 4, 8, 16, 32, and 64 threads on a KNL node. You can request a 30 minutes interactive session to run the benchmarks using the idev  command. (Stampede2’s KNL nodes have 68 cores and each core can run 4 hardware threads so you can try with more threads if you’d like.) Record the average time per step that is reported at the end. Make sure you use enough steps to give consistent results. (If the run-time is very short, the results can be noisy because the operating system does a lot of work to start a new process. We want to run for several seconds at least to make sure that noise isn’t interfering with the results.) Note that you can reduce the # of steps as you increase the # of particles to reduce the total runtime. These results will be used to compute the strong scalability and efficiency.
+
+Now run a weak scalability test. The goal here is to keep the workload per-thread constant (i.e., the amount of computation per thread constant). This means you need to increase the number of particles as you increase the number of threads. Run two weak scaling studies starting with 200 and 1,000 particles serially and increase up to 64 threads. Recall that the computational cost of the n-body problem scales as n2 where n is the # of particles. Use that to determine how to increase the # of particles as you double the # of threads.
+
+5) Write a brief report that summarizes the performance results you measured. Create plots showing the strong scaling speed-up and efficiency (see Lectures #1 and #2 and #9) and the weak scaling efficiency. Use these plots to answer these two central questions: (1) does the n-body algorithm scale in parallel and (2) is the scalability constant or dependent upon the number of threads and particles?
+
+Also include a summary of code modifications that were necessary. Discuss difficulties you encountered and what you did you overcome them. You report should be self-contained in a single document. Incorporate plots into your brief write-up. Do not submit only a spreadsheet with timings.
+
+As with all assignments, you are encouraged to work with a partner. Only one report is needed per group but everyone must submit a note to Sakai indicating with whom you worked, how long this assignment took, and did you run into any problems.

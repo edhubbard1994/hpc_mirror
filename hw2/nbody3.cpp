@@ -52,13 +52,15 @@ ValueType frand(void) { return ValueType( rand() ) / RAND_MAX; }
 template <typename ValueType>
 void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
 {
+
    for (int i = 0; i < n; ++i)
    {
       ValueType ax = 0, ay = 0, az = 0;
       const ValueType xi = pos_array(i,0);
       const ValueType yi = pos_array(i,1);
       const ValueType zi = pos_array(i,2);
-
+      #pragma omp parallel
+      #pragma omp for
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */
@@ -82,7 +84,10 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
 template <typename ValueType>
 void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, ValueType h)
 {
+   
    for (int i = 0; i < n; ++i)
+      #pragma omp parallel
+      #pragma omp for
       for (int k = 0; k < NDIM; ++k)
       {
          pos_array(i,k) += vel_array(i,k)*h + acc_array(i,k)*h*h/2;
@@ -119,9 +124,13 @@ template <typename ValueType>
 void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n)
 {
    ValueType minv = 1e10, maxv = 0, ave = 0;
+   #pragma omp parallel
+   #pragma omp for
    for (int i = 0; i < n; ++i)
    {
       ValueType vmag = 0;
+      #pragma omp parallel
+      #pragma omp for
       for (int k = 0; k < NDIM; ++k)
          vmag += (vel_array(i,k) * vel_array(i,k));
 

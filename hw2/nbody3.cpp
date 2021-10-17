@@ -83,7 +83,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       acc_array(i,1) = G * ay;
       acc_array(i,2) = G * az;
    }
-   printf("Accel_register Number of threads: %d/n",omp_get_num_threads());
+   printf("Accel_register Number of threads: %d\n",omp_get_num_threads());
 }
 
 template <typename ValueType>

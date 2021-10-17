@@ -64,7 +64,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       const ValueType zi = pos_array(i,2);
 
        
-       
+      #pragma omp for
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */

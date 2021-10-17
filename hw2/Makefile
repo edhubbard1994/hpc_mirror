@@ -8,6 +8,7 @@ ifeq ($(CXX),icpc)
   CXXFLAGS += -xHost #-no-vec
   CXXFLAGS += -qopt-report=5
   CXXFLAGS += -Wunknown-pragmas # Disable warning about OpenMP pragma no defined.
+  CXXFLAGS += -fopenmp
 endif
 
 ifeq ($(CXX),g++)

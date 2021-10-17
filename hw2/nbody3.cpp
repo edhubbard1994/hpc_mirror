@@ -13,6 +13,8 @@
 #include <timer.h>
 #include <aligned_allocator.h>
 
+#include <omp.h>
+
 #ifndef __RESTRICT
 #  define __RESTRICT
 #endif
@@ -81,6 +83,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       acc_array(i,1) = G * ay;
       acc_array(i,2) = G * az;
    }
+   printf("Accel_register Number of threads: %d/n",omp_get_num_threads());
 }
 
 template <typename ValueType>
@@ -206,7 +209,7 @@ int run_tests( const int n, const int num_steps, const ValueType dt)
 
       /* 1. Seed the pseudo-random generator. */
       srand(n);
-
+      
       for (int i = 0; i < n; ++i)
       {
          /* 2. Set some random positions for each object {-1,1}. */

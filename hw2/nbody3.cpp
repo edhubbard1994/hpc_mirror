@@ -63,7 +63,6 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
 
        
       #pragma ivdep
-       #pragma omp parallel
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */

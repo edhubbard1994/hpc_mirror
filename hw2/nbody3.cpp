@@ -54,8 +54,6 @@ ValueType frand(void) { return ValueType( rand() ) / RAND_MAX; }
 template <typename ValueType>
 void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
 {
-   #pragma omp parallel
-   #pragma omp for
    for (int i = 0; i < n; ++i)
    {
       ValueType ax = 0, ay = 0, az = 0;
@@ -64,7 +62,8 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       const ValueType zi = pos_array(i,2);
 
        
-      #pragma omp for
+      #pragma ivdep
+       #pragma omp parallel
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */
@@ -83,7 +82,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       acc_array(i,1) = G * ay;
       acc_array(i,2) = G * az;
    }
-   printf("Accel_register Number of threads: %d\n",omp_get_num_threads());
+// printf("Accel_register Number of threads: %d\n",omp_get_num_threads());
 }
 
 template <typename ValueType>

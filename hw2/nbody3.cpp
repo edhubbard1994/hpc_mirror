@@ -129,6 +129,7 @@ void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
    ValueType minv = 1e10, maxv = 0, ave = 0;
     
    //#pragma omp parallel default(shared)
+   #pragma omp parallel for default(shared)
    for (int i = 0; i < n; ++i)
    {
       ValueType vmag = 0;
@@ -138,7 +139,7 @@ void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
          vmag += (vel_array(i,k) * vel_array(i,k));
 
       vmag = sqrt(vmag);
-
+      //#pragma omp single
       maxv = std::max(maxv, vmag);
       minv = std::min(minv, vmag);
       ave += vmag;
@@ -311,7 +312,7 @@ int main (int argc, char* argv[])
    /* ValueType? (float or double) */
    bool useDouble = true;
 
-   printf("Accel_register Number of threads: %d\n",omp_get_num_threads());
+   printf("Number of threads: %d\n",omp_get_num_threads());
    for (int i = 1; i < argc; ++i)
    {
 #define check_index(i,str) \

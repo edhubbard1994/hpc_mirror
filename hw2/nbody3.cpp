@@ -54,8 +54,7 @@ ValueType frand(void) { return ValueType( rand() ) / RAND_MAX; }
 template <typename ValueType>
 void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, ValueType * __RESTRICT mass, ValueType * __RESTRICT acc, const int n)
 {
-   #pragma omp parallel
-   #pragma omp for
+   #pragma omp parallel for 
    for (int i = 0; i < n; ++i)
    {
       ValueType ax = 0, ay = 0, az = 0;
@@ -64,7 +63,6 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       const ValueType zi = pos_array(i,2);
 
        
-      #pragma omp for
       for (int j = 0; j < n; ++j)
       {
          /* Position vector from i to j and the distance^2. */
@@ -73,7 +71,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
          ValueType rz = pos_array(j,2) - zi;
          ValueType dsq = rx*rx + ry*ry + rz*rz + TINY2;
          ValueType m_invR3 = mass[j] / (dsq * std::sqrt(dsq));
-
+          
          ax += rx * m_invR3;
          ay += ry * m_invR3;
          az += rz * m_invR3;
@@ -83,15 +81,15 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
       acc_array(i,1) = G * ay;
       acc_array(i,2) = G * az;
    }
-   printf("Accel_register Number of threads: %d\n",omp_get_num_threads());
+
 }
 
 template <typename ValueType>
 void update (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[], const int n, ValueType h)
 {
    
+   #pragma omp parallel for collapse(2)
    for (int i = 0; i < n; ++i)
-       
        
       for (int k = 0; k < NDIM; ++k)
       {
@@ -130,7 +128,7 @@ void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
 {
    ValueType minv = 1e10, maxv = 0, ave = 0;
     
-    
+   #pragma omp parallel for shared(maxv, minv, ave)
    for (int i = 0; i < n; ++i)
    {
       ValueType vmag = 0;
@@ -140,7 +138,6 @@ void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
          vmag += (vel_array(i,k) * vel_array(i,k));
 
       vmag = sqrt(vmag);
-
       maxv = std::max(maxv, vmag);
       minv = std::min(minv, vmag);
       ave += vmag;
@@ -313,6 +310,7 @@ int main (int argc, char* argv[])
    /* ValueType? (float or double) */
    bool useDouble = true;
 
+   printf("Number of threads: %d\n",omp_get_num_threads());
    for (int i = 1; i < argc; ++i)
    {
 #define check_index(i,str) \

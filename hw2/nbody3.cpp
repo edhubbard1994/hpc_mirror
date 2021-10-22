@@ -71,7 +71,7 @@ void accel_register (ValueType * __RESTRICT pos, ValueType * __RESTRICT vel, Val
          ValueType rz = pos_array(j,2) - zi;
          ValueType dsq = rx*rx + ry*ry + rz*rz + TINY2;
          ValueType m_invR3 = mass[j] / (dsq * std::sqrt(dsq));
-
+          
          ax += rx * m_invR3;
          ay += ry * m_invR3;
          az += rz * m_invR3;

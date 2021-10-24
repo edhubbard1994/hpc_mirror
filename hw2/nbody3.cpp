@@ -128,12 +128,11 @@ void search (ValueType pos[], ValueType vel[], ValueType mass[], ValueType acc[]
 {
    ValueType minv = 1e10, maxv = 0, ave = 0;
     
-   //#pragma omp parallel for shared(maxv, minv, ave)
+   #pragma omp parallel for //ishared(maxv, minv, ave)
    for (int i = 0; i < n; ++i)
    {
       ValueType vmag = 0;
-       
-       
+        
       for (int k = 0; k < NDIM; ++k)
          vmag += (vel_array(i,k) * vel_array(i,k));
 

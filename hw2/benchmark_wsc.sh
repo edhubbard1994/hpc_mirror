@@ -8,6 +8,6 @@ do
 	export OMP_NUM_THREADS=$i
 	echo "NUMBER OF THREADS: $i" 
 	#./nbody3 -n $1 -s $2 > /dev/null | grep "Average time" 
-	./nbody3 -n $1 -s $2 | grep -n "Average time" 
+	./nbody3 -n $i*1000 -s 200 | grep -n "Average time" 
 	echo "================" 
 done
